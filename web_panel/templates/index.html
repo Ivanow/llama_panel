@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Server Manager</title>
+    <link rel="icon" href="/static/favicon.ico" type="image/x-icon">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <header>
+        <h1>
+            <svg style="width:28px; height:28px; color: var(--accent);" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            LLM Server Manager
+        </h1>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="refreshModels()" id="btn-refresh-models" title="Сканировать папку models на сервере">
+                <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                Обновить модели
+            </button>
+            <button class="btn-primary" onclick="openModal()">
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Добавить сервер
+            </button>
+        </div>
+    </header>
+
+    <div class="grid" id="instances-grid">
+        <p>Загрузка конфигураций...</p>
+    </div>
+
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2 id="modal-title" style="margin-top:0; font-weight: 600; margin-bottom: 25px;">Новый инстанс</h2>
+            
+            <form id="addForm" onsubmit="saveInstance(event)">
+                
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label>Имя конфига</label>
+                        <input type="text" id="new-name" required placeholder="qwen-coder" pattern="[a-zA-Z0-9_\-]+">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Порт</label>
+                        <input type="number" id="new-port" required value="8081" min="1024" max="65535">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Путь к модели (.gguf)</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="new-model" required placeholder="/stor001/models/...">
+                        <button type="button" onclick="openExplorer('main')" style="white-space: nowrap;">
+                            <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                            Обзор
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Режим работы</label>
+                    <select id="run-mode" onchange="onModeChange()">
+                        <option value="chat">Чат (Chat)</option>
+                        <option value="coder">Кодер (Reasoning Coding)</option>
+                        <option value="embedding">Эмбеддинги (Embeddings)</option>
+                        <option value="rerank">Реранкинг (Reranking)</option>
+                        <option value="vision">OCR / Vision (Мультимодальность)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-top: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <label style="margin: 0;">Аргументы запуска</label>
+                        <button type="button" onclick="toggleArgsBuilder()" style="padding: 6px 12px; font-size: 12px;">
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                            Настроить
+                        </button>
+                    </div>
+                    <input type="text" id="new-args" value="--n-gpu-layers 9 --ctx-size 8192 --threads 10">
+                    
+                    <div id="args-builder" class="args-builder">
+                        <div class="args-grid">
+                            <div class="arg-section-title">Базовые настройки</div>
+                            <div class="arg-item">
+                                <label>GPU Слои (--n-gpu-layers) <span class="tooltip">?<span class="tooltiptext">Количество слоёв модели, которые будут загружены в VRAM видеокарты. Больше = быстрее, но требует памяти.</span></span></label>
+                                <input type="number" id="arg-gpu-layers" value="9" min="0" onchange="onArgChange()">
+                                <small>Сколько слоёв выгрузить на видеокарту</small>
+                            </div>
+                            <div class="arg-item">
+                                <label>Потоки CPU (--threads) <span class="tooltip">?<span class="tooltiptext">Количество потоков процессора для генерации. Обычно равно числу физических ядер.</span></span></label>
+                                <input type="number" id="arg-threads" value="10" min="1" onchange="onArgChange()">
+                                <small>Количество потоков процессора</small>
+                            </div>
+                            <div class="arg-item">
+                                <label>Размер контекста (--ctx-size) <span class="tooltip">?<span class="tooltiptext">Максимальный объём памяти (в токенах) для диалога. Меняется автоматически в зависимости от режима.</span></span></label>
+                                <input type="number" id="arg-ctx" value="8192" min="512" onchange="onArgChange()">
+                                <small>Объём памяти для диалога</small>
+                            </div>
+                        </div>
+
+                        <div id="group-generation" class="args-grid" style="margin-top: 15px;">
+                            <div class="arg-section-title">Оптимизация генерации</div>
+                            <div class="arg-item">
+                                <label><input type="checkbox" id="arg-flash" checked onchange="onArgChange()"> Flash Attention (KV Cache q8_0) <span class="tooltip">?<span class="tooltiptext">Ускоряет генерацию и экономит VRAM за счёт квантования кэша.</span></span></label>
+                                <small>Ускоряет генерацию и экономит VRAM</small>
+                            </div>
+                            <div class="arg-item">
+                                <label><input type="checkbox" id="arg-jinja" checked onchange="onArgChange()"> Jinja шаблоны (--jinja) <span class="tooltip">?<span class="tooltiptext">ОБЯЗАТЕЛЬНО для Gemma, Llama 3, Qwen и большинства современных моделей.</span></span></label>
+                                <small>ОБЯЗАТЕЛЬНО для современных моделей</small>
+                            </div>
+                        </div>
+
+                        <div id="group-reasoning" class="args-grid" style="margin-top: 15px;">
+                            <div class="arg-section-title">Управление рассуждениями (Reasoning)</div>
+                            <div class="arg-item">
+                                <label>Режим (--reasoning) <span class="tooltip">?<span class="tooltiptext">on = всегда думает, off = никогда, auto = по шаблону модели.</span></span></label>
+                                <select id="arg-reasoning-mode" onchange="onArgChange()">
+                                    <option value="auto">Auto (по шаблону)</option>
+                                    <option value="on">On (включено)</option>
+                                    <option value="off">Off (отключено)</option>
+                                </select>
+                                <small>Прямое управление режимом</small>
+                            </div>
+                            <div class="arg-item">
+                                <label>Бюджет токенов (--reasoning-budget) <span class="tooltip">?<span class="tooltiptext">-1 = без ограничений, 0 = мгновенно завершить, N > 0 = лимит в N токенов.</span></span></label>
+                                <input type="number" id="arg-reasoning-budget" placeholder="-1" onchange="onArgChange()">
+                                <small>Лимит токенов на размышления</small>
+                            </div>
+                            <div class="arg-item">
+                                <label>Kwargs для шаблона (--chat-template-kwargs) <span class="tooltip">?<span class="tooltiptext">JSON-строка для тонкой настройки. Пример: {"enable_thinking": false}.</span></span></label>
+                                <input type="text" id="arg-reasoning-kwargs" placeholder='{"enable_thinking": false}' onchange="onArgChange()">
+                                <small>Тонкое управление</small>
+                            </div>
+                            <div class="arg-item">
+                                <label>Формат вывода (--reasoning-format) <span class="tooltip">?<span class="tooltiptext">Как возвращать мысли: deepseek (в reasoning_content), none (в content).</span></span></label>
+                                <select id="arg-reasoning-format" onchange="onArgChange()">
+                                    <option value="auto">Auto</option>
+                                    <option value="none">None (в content)</option>
+                                    <option value="deepseek">DeepSeek (в reasoning_content)</option>
+                                </select>
+                                <small>Формат мыслей в ответе</small>
+                            </div>
+                        </div>
+
+                        <div id="group-vision" class="args-grid" style="margin-top: 15px;">
+                            <div class="arg-section-title">Мультимодальность (Vision)</div>
+                            <div class="arg-item">
+                                <label>Проектор (--mmproj)</label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="text" id="arg-mmproj" placeholder="Путь к mmproj-*.gguf" onchange="onArgChange()">
+                                    <button type="button" onclick="openExplorer('mmproj')" style="padding: 0 10px;">
+                                        <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                    </button>
+                                </div>
+                                <small>Для анализа изображений</small>
+                            </div>
+                        </div>
+
+                        <div id="group-draft" class="args-grid" style="margin-top: 15px;">
+                            <div class="arg-section-title">Спекулятивное декодирование (Draft)</div>
+                            <div class="arg-item">
+                                <label>Черновая модель (-md) <span class="tooltip">?<span class="tooltiptext">ВНИМАНИЕ! Токенизатор драфта ДОЛЖЕН совпадать с основной моделью. Для Qwen2.5-Coder-7B берите Qwen2.5-Coder-0.5B.</span></span></label>
+                                <div style="display: flex; gap: 5px;">
+                                    <input type="text" id="arg-draft-model" placeholder="Путь к draft-модели (0.5B)" onchange="onArgChange()">
+                                    <button type="button" onclick="openExplorer('draft')" style="padding: 0 10px;">
+                                        <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                                    </button>
+                                </div>
+                                <small>Маленькая модель с тем же токенизатором для ускорения</small>
+                            </div>
+                            <div class="arg-item">
+                                <label>Кол-во токенов (--draft-max) <span class="tooltip">?<span class="tooltiptext">Сколько токенов предлагает черновая модель за один шаг (рекомендуется 16).</span></span></label>
+                                <input type="number" id="arg-draft-max" value="16" onchange="onArgChange()">
+                                <small>Сколько токенов предлагает draft</small>
+                            </div>
+                            <div class="arg-item" style="grid-column: 1 / -1;">
+                                <div style="padding: 10px; background: rgba(245, 158, 11, 0.1); border-left: 3px solid var(--warning); border-radius: 4px; font-size: 12px; color: var(--warning);">
+                                    <b>⚠️ Внимание:</b> Для работы Draft в новых версиях llama.cpp автоматически будет добавлен флаг <code>--spec-type draft-simple</code>. Убедитесь, что архитектура драфта совпадает с основной моделью.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="group-moe" class="args-grid" style="margin-top: 15px;">
+                            <div class="arg-section-title">MoE (DeepSeek / Mixtral)</div>
+                            <div class="arg-item">
+                                <label>MoE CPU Слои (--n-cpu-moe) <span class="tooltip">?<span class="tooltiptext">Количество слоёв экспертов (MoE), оставляемых на CPU.</span></span></label>
+                                <input type="number" id="arg-moe" placeholder="напр. 12" onchange="onArgChange()">
+                                <small>Для больших MoE моделей</small>
+                            </div>
+                        </div>
+
+                        <div id="group-embedding" class="args-grid" style="margin-top: 15px; display: none;">
+                            <div class="arg-section-title">Настройки эмбеддингов</div>
+                            <div class="arg-item">
+                                <label>Тип пулинга (--pooling) <span class="tooltip">?<span class="tooltiptext">Способ объединения токенов: mean, cls, last, rank.</span></span></label>
+                                <select id="arg-pooling" onchange="onArgChange()">
+                                    <option value="mean">Mean (среднее)</option>
+                                    <option value="cls">CLS (для BERT)</option>
+                                    <option value="last">Last (для декодеров)</option>
+                                    <option value="rank">Rank (для реранкеров)</option>
+                                </select>
+                                <small>Как объединять токены</small>
+                            </div>
+                        </div>
+
+                        <div id="group-reranking" class="args-grid" style="margin-top: 15px; display: none;">
+                            <div class="arg-section-title">Настройки реранкинга</div>
+                            <div class="arg-item">
+                                <label>Реранкинг включён (--reranking)</label>
+                                <small>Автоматически использует pooling = rank</small>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn-primary" onclick="buildArgs()" style="width: 100%; margin-top: 15px; padding: 10px;">Применить аргументы</button>
+                    </div>
+                </div>
+
+                <button type="submit" id="btn-submit" class="btn-primary" style="width: 100%; padding: 14px; font-size: 16px; margin-top: 10px;">Создать конфиг</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="explorerModal" class="modal-overlay">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeExplorer()">&times;</span>
+            <h3 style="margin-top:0; margin-bottom: 15px;">Выбор файла</h3>
+            <div id="explorer" class="explorer" style="display: flex;">
+                <div class="explorer-header">
+                    <button type="button" id="btn-up" onclick="goUp()" style="display: none; padding: 6px 10px;">
+                        <svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    </button>
+                    <input type="text" id="model-search" placeholder="Поиск в текущей папке..." oninput="renderExplorer()">
+                </div>
+                <div class="breadcrumbs" id="breadcrumbs"></div>
+                <div class="explorer-list" id="model-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

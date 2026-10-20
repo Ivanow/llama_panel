@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Локальные данные панели
+web_panel/models_cache.json
+web_panel/panel_error.log
+logs/*
+!logs/.gitkeep
+
+# Конфигурации (у каждого пользователя свои модели и порты)
+instances/*.conf
+!instances/example.conf
+
+# Бинарники и сборки llama.cpp (они огромные и собираются локально)
+build/
+llama.cpp/
+
+# Системный мусор
+.DS_Store
+Thumbs.db
