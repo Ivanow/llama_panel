@@ -12,17 +12,43 @@
 - **Визуальный конструктор аргументов**: Удобный выбор параметров (`--n-gpu-layers`, `--ctx-size`, Flash Attention, Draft, Vision и т.д.) с автоматической сборкой строки.
 - **Встроенный проводник**: Выбор `.gguf` файлов прямо из веб-интерфейса без копирования путей.
 
-## 🛠 Стек технологий
-- **Бэкенд**: Python 3, Flask
-- **Фронтенд**: Vanilla JS, CSS Grid / Glassmorphism
-- **Управление процессами**: Bash, tmux
-- **Движок**: llama.cpp
+## 🛠 Требования
+- **ОС**: Linux (тестировалось на Ubuntu 22.04).
+- **Python**: 3.10+
+- **Утилиты**: `tmux`, `curl`, `ss` (пакет `iproute2`).
+- **Движок**: Скомпилированный бинарник `llama-server` из [llama.cpp](https://github.com/ggerganov/llama.cpp).
 
 ## 📦 Установка и запуск
-1. Убедитесь, что `llama-server` собран и лежит по пути `/stor001/llama_server/build/bin/llama-server`.
-2. Установите Flask: `sudo apt install python3-flask`.
-3. Запустите бэкенд: `python3 /stor001/llama_server/web_panel/app.py`.
-4. Откройте в браузере: `http://<IP_СЕРВЕРА>:8090`.
+
+1. **Клонируйте репозиторий:**
+   ```bash
+   git clone https://github.com/Ivanow/llama_panel.git
+   cd llama_panel
+   ```
+
+2. **Установите зависимости Python:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Подготовьте бинарник llama.cpp:**
+   Скомпилируйте `llama.cpp` под вашу видеокарту (например, `-DCMAKE_CUDA_ARCHITECTURES=61` для Pascal) и положите бинарник `llama-server` по пути:
+   `build/bin/llama-server`
+   *(Убедитесь, что у файла есть права на выполнение: `chmod +x build/bin/llama-server`)*.
+
+4. **Сделайте скрипт управления исполняемым:**
+   ```bash
+   chmod +x manager.sh
+   ```
+
+5. **Запустите сервер панели:**
+   ```bash
+   python3 web_panel/app.py
+   ```
+   *(Панель по умолчанию запускается на порту `8090`)*.
+
+6. **Откройте в браузере:**
+   Перейдите по адресу `http://<IP_ВАШЕГО_СЕРВЕРА>:8090`.
 
 ## 📄 Документация
 Полное описание архитектуры, алгоритмов и решений находится в папке `doc/`:

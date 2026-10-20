@@ -1,23 +1,25 @@
-# 1. Игнорируем ВСЕ на свете
+# Игнорируем всё
 *
-
-# 2. Разрешаем наши папки и файлы (сами папки)
+# Разрешаем наши файлы
 !.gitignore
 !README.md
+!README_EN.md
 !LICENSE
 !manager.sh
+!requirements.txt
 !web_panel/
 !doc/
 !instances/
 !logs/
+!build/bin/.gitkeep
 
-# 3. Разрешаем содержимое этих папок (звездочка внутри папки)
+# Разрешаем содержимое папок
 !web_panel/**
 !doc/**
 !instances/**
 !logs/**
 
-# 4. Внутри разрешенных папок исключаем мусор
+# Исключения
 web_panel/__pycache__/
 web_panel/models_cache.json
 web_panel/panel_error.log
@@ -25,3 +27,6 @@ instances/*.conf
 !instances/example.conf
 logs/*
 !logs/.gitkeep
+build/bin/llama-server
+build/bin/*
+!build/bin/.gitkeep
