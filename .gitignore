@@ -12,6 +12,7 @@
 !instances/
 !logs/
 !build/bin/.gitkeep
+!build/bin/llama-server
 
 # Разрешаем содержимое папок
 !web_panel/**
@@ -27,6 +28,3 @@ instances/*.conf
 !instances/example.conf
 logs/*
 !logs/.gitkeep
-build/bin/llama-server
-build/bin/*
-!build/bin/.gitkeep
