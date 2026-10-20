@@ -1,24 +1,31 @@
-# Игнорируем всё
+# Игнорируем вообще всё
 *
-# Разрешаем наши файлы
+
+# Явно разрешаем папки (чтобы Git заглянул внутрь)
 !.gitignore
+!doc/
+!instances/
+!logs/
+!web_panel/
+!build/
+!build/bin/
+
+# Разрешаем файлы в корне
 !README.md
 !README_EN.md
 !LICENSE
 !manager.sh
 !requirements.txt
-!web_panel/
-!doc/
-!instances/
-!logs/
-!build/bin/.gitkeep
+
+# Разрешаем бинарник
 !build/bin/llama-server
+!build/bin/.gitkeep
 
 # Разрешаем содержимое папок
-!web_panel/**
 !doc/**
 !instances/**
 !logs/**
+!web_panel/**
 
 # Исключения
 web_panel/__pycache__/
