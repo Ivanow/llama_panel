@@ -1,62 +1,27 @@
-# Python
-__pycache__/
-*.py[cod]
-venv/
-.venv/
+# 1. Игнорируем ВСЕ на свете
+*
 
-# Локальные данные панели
+# 2. Разрешаем наши папки и файлы (сами папки)
+!.gitignore
+!README.md
+!LICENSE
+!manager.sh
+!web_panel/
+!doc/
+!instances/
+!logs/
+
+# 3. Разрешаем содержимое этих папок (звездочка внутри папки)
+!web_panel/**
+!doc/**
+!instances/**
+!logs/**
+
+# 4. Внутри разрешенных папок исключаем мусор
+web_panel/__pycache__/
 web_panel/models_cache.json
 web_panel/panel_error.log
-logs/*
-!logs/.gitkeep
-
-# Конфигурации (у каждого пользователя свои модели и порты)
 instances/*.conf
 !instances/example.conf
-
-# Бинарники и сборки llama.cpp (они огромные и собираются локально)
-build/
-bin/
-
-# ИСХОДНИКИ LLAMA.CPP (запрещаем Git'у их видеть)
-src/
-tests/
-examples/
-ggml/
-tools/
-app/
-benches/
-ci/
-cmake/
-common/
-conversion/
-docs/
-grammars/
-include/
-licenses/
-media/
-models/
-pocs/
-requirements/
-scripts/
-skills/
-vendor/
-CMakeLists.txt
-Makefile
-*.md
-!README.md
-!doc/руководство_пользователя.md
-.gitmodules
-.dockerignore
-.flake8
-.clang-format
-.clang-tidy
-.editorconfig
-.pre-commit-config.yaml
-build-xcframework.sh
-convert_*.py
-flake.nix
-
-# Системный мусор
-.DS_Store
-Thumbs.db
+logs/*
+!logs/.gitkeep
