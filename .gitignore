@@ -16,7 +16,46 @@ instances/*.conf
 
 # Бинарники и сборки llama.cpp (они огромные и собираются локально)
 build/
-llama.cpp/
+bin/
+
+# ИСХОДНИКИ LLAMA.CPP (запрещаем Git'у их видеть)
+src/
+tests/
+examples/
+ggml/
+tools/
+app/
+benches/
+ci/
+cmake/
+common/
+conversion/
+docs/
+grammars/
+include/
+licenses/
+media/
+models/
+pocs/
+requirements/
+scripts/
+skills/
+vendor/
+CMakeLists.txt
+Makefile
+*.md
+!README.md
+!doc/руководство_пользователя.md
+.gitmodules
+.dockerignore
+.flake8
+.clang-format
+.clang-tidy
+.editorconfig
+.pre-commit-config.yaml
+build-xcframework.sh
+convert_*.py
+flake.nix
 
 # Системный мусор
 .DS_Store
