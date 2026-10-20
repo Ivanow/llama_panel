@@ -7,6 +7,8 @@
 
 A web panel for easy management of local LLM servers based on `llama.cpp`. It allows you to start, stop, and edit model configurations through a modern web interface, bypassing manual argument typing in the terminal.
 
+![LlamaPanel Screenshot](doc/images/llama_panel.jpg)
+
 ## 🚀 Features
 - **Lifecycle Management**: Start, stop, and restart servers with one click (via `tmux`).
 - **Smart Resource Check**: The panel automatically queries `nvidia-smi` and system memory (RAM).
