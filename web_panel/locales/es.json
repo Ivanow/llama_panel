@@ -131,5 +131,12 @@
   "status_detail_port_health": "puerto activo, verifique la salud del servidor",
   "status_detail_port_loading": "puerto abierto, el modelo aún se está cargando",
   "status_detail_port_down": "puerto cerrado",
-  "err_tmux_attach": "tmux no está instalado o la sesión no existe"
+  "err_tmux_attach": "tmux no está instalado o la sesión no existe",
+  "err_path_forbidden": "Esta ruta está fuera de las carpetas de modelos permitidas",
+  "err_path_not_found": "Carpeta no encontrada",
+  "err_path_denied": "Sin permiso para leer esta carpeta",
+  "explorer_loading": "Cargando...",
+  "explorer_no_roots": "No hay carpetas de modelos permitidas configuradas. Defina LLAMA_MODELS_DIRS al iniciar el panel.",
+  "explorer_roots_title": "Carpeta raíz",
+  "explorer_truncated": "Demasiados archivos en esta carpeta: no se muestran todos"
 }

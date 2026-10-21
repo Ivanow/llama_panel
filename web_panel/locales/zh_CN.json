@@ -131,5 +131,12 @@
   "status_detail_port_health": "端口活动，请检查服务器状态",
   "status_detail_port_loading": "端口已打开，模型仍在加载",
   "status_detail_port_down": "端口已关闭",
-  "err_tmux_attach": "未安装 tmux 或会话不存在"
+  "err_tmux_attach": "未安装 tmux 或会话不存在",
+  "err_path_forbidden": "该路径位于允许的模型文件夹之外",
+  "err_path_not_found": "未找到文件夹",
+  "err_path_denied": "没有读取此文件夹的权限",
+  "explorer_loading": "加载中...",
+  "explorer_no_roots": "未配置允许的模型文件夹。启动面板时请设置 LLAMA_MODELS_DIRS。",
+  "explorer_roots_title": "根文件夹",
+  "explorer_truncated": "此文件夹中文件过多——未全部显示"
 }

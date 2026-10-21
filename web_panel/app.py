@@ -11,14 +11,39 @@ app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
-log_file = "/stor001/llama_server/web_panel/panel_error.log"
-logging.basicConfig(filename=log_file, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# --- Пути (можно переопределить переменными окружения LLAMA_BASE_DIR / LLAMA_MODELS_DIRS) ---
+# LLAMA_MODELS_DIRS — список корневых папок для проводника моделей через запятую или ':'.
+def _env_list(name):
+    raw = os.environ.get(name, "")
+    parts = []
+    for chunk in re.split(r'[,:]', raw):
+        chunk = chunk.strip()
+        if chunk:
+            parts.append(chunk)
+    return parts
 
-BASE_DIR = "/stor001/llama_server"
+WEB_PANEL_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.abspath(os.environ.get("LLAMA_BASE_DIR") or os.path.dirname(WEB_PANEL_DIR))
 INSTANCES_DIR = os.path.join(BASE_DIR, "instances")
 MANAGER_SH = os.path.join(BASE_DIR, "manager.sh")
-MODELS_DIR = "/stor001/models"
 CACHE_FILE = os.path.join(BASE_DIR, "web_panel", "models_cache.json")
+
+_DEFAULT_MODEL_ROOTS = ["/stor001/models", os.path.expanduser("~/models")]
+_env_roots = _env_list("LLAMA_MODELS_DIRS")
+if _env_roots:
+    MODEL_ROOTS = [os.path.abspath(p) for p in _env_roots]
+else:
+    # совместимость с историческим MODELS_DIR и дефолтные кандидаты
+    legacy = os.environ.get("MODELS_DIR")
+    candidates = ([legacy] if legacy else []) + _DEFAULT_MODEL_ROOTS
+    existing = [p for p in candidates if os.path.isdir(p)]
+    MODEL_ROOTS = [os.path.abspath(p) for p in (existing or _DEFAULT_MODEL_ROOTS)]
+
+LOG_FILE = os.path.join(WEB_PANEL_DIR, "panel_error.log")
+try:
+    logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+except Exception:
+    logging.basicConfig(level=logging.INFO)
 
 # --- Локализация (языковые пакеты подгружаются динамически из папки locales) ---
 LOCALES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "locales")
@@ -132,30 +157,146 @@ def is_session_running(name):
     res = subprocess.run(['tmux', 'has-session', '-t', f'llama-{name}'], capture_output=True)
     return res.returncode == 0
 
-def scan_models_to_cache():
-    models_list = []
+# --- Ленивый файловый браузер (Вариант А) ---
+# Разрешены только пути внутри MODEL_ROOTS (whitelist). Скан всей папки не нужен —
+# содержимое директории отдаётся по запросу, навигация возможна в пределах whitelist.
+MAX_BROWSE_DEPTH = 8      # глубина от корня whitelist
+MAX_FILES_PER_DIR = 500   # максимум .gguf-файлов на одну директорию
+
+def get_roots():
+    """Актуальный список доступных корневых папок (только существующие директории)."""
+    roots = []
+    for r in MODEL_ROOTS:
+        try:
+            real = os.path.realpath(r)
+        except Exception:
+            continue
+        if os.path.isdir(real) and real not in roots:
+            roots.append(real)
+    return roots
+
+def is_under_roots(path):
+    """Проверка, что path находится внутри одного из корней whitelist (без выхода '..')."""
     try:
-        for root, dirs, files in os.walk(MODELS_DIR):
-            if root[len(MODELS_DIR):].count(os.sep) > 6:
-                dirs[:] = []
-                continue
-            for file in files:
-                if file.lower().endswith('.gguf'):
-                    full_path = os.path.join(root, file)
-                    models_list.append({
-                        "name": file, "path": full_path,
-                        "rel_path": os.path.relpath(full_path, MODELS_DIR),
-                        "size_gb": round(os.path.getsize(full_path) / (1024**3), 2)
-                    })
-        models_list.sort(key=lambda x: x['rel_path'])
-        temp_cache = CACHE_FILE + ".tmp"
-        with open(temp_cache, 'w', encoding='utf-8') as f:
-            json.dump(models_list, f, ensure_ascii=False, indent=2)
-        os.replace(temp_cache, CACHE_FILE)
-        return True
-    except Exception as e:
-        logging.error(f"Ошибка сканирования: {e}")
+        real = os.path.realpath(path)
+    except Exception:
         return False
+    for root in get_roots():
+        try:
+            common = os.path.commonpath([root, real])
+        except ValueError:
+            common = None
+        if common == root:
+            return True
+    return False
+
+def human_size(nbytes):
+    gb = nbytes / (1024 ** 3)
+    if gb >= 1:
+        return f"{round(gb, 2)} GB"
+    return f"{max(1, round(nbytes / (1024 ** 2)))} MB"
+
+@app.route('/api/browse/roots')
+def browse_roots():
+    return jsonify({"roots": get_roots()})
+
+@app.route('/api/browse')
+def browse_dir():
+    lang = get_locale()
+    rel = request.args.get('path', '') or ''
+    roots = get_roots()
+    if os.path.isabs(rel):
+        target = os.path.abspath(rel)
+    else:
+        base = roots[0] if roots else '/'
+        target = os.path.abspath(os.path.join(base, rel.lstrip('/')))
+    if not is_under_roots(target):
+        return err("err_path_forbidden", 403, lang=lang)
+    if not os.path.isdir(target):
+        return err("err_path_not_found", 404, lang=lang)
+
+    depth = 0
+    inside_root = ""
+    for root in get_roots():
+        if os.path.commonpath([root, target]) == root:
+            inside_root = root
+            rel_to_root = os.path.relpath(target, root)
+            depth = 0 if rel_to_root == '.' else rel_to_root.count(os.sep) + 1
+            break
+    truncated = False
+    folders, files = [], []
+    try:
+        with os.scandir(target) as it:
+            entries = sorted(it, key=lambda e: e.name.lower())
+    except PermissionError:
+        return err("err_path_denied", 403, lang=lang)
+    except Exception as e:
+        logging.error(f"Ошибка чтения директории {target}: {e}")
+        return err("err_generic", 500, lang=lang)
+
+    for entry in entries:
+        try:
+            if entry.is_dir(follow_symlinks=False) or (entry.is_symlink() and os.path.isdir(entry.path)):
+                if depth + 1 > MAX_BROWSE_DEPTH:
+                    continue
+                folders.append({"name": entry.name, "path": os.path.join(target, entry.name)})
+            elif entry.name.lower().endswith('.gguf') and entry.is_file(follow_symlinks=True):
+                if len(files) >= MAX_FILES_PER_DIR:
+                    truncated = True
+                    continue
+                full = os.path.join(target, entry.name)
+                if not is_under_roots(full):   # симлинк наружу из whitelist — пропускаем
+                    continue
+                files.append({
+                    "name": entry.name,
+                    "path": full,
+                    "size_gb": round(os.path.getsize(full) / (1024 ** 3), 2),
+                    "size_human": human_size(os.path.getsize(full)),
+                })
+        except Exception:
+            continue
+
+    parent = os.path.dirname(target)
+    # «вверх» разрешено, пока родитель остаётся внутри того же корня whitelist
+    can_go_up = bool(inside_root) and is_under_roots(parent) and os.path.commonpath([inside_root, parent]) == inside_root
+    return jsonify({
+        "cwd": target,
+        "root": inside_root,
+        "parent": parent if can_go_up else None,
+        "at_root": not can_go_up,
+        "folders": folders,
+        "files": files,
+        "truncated": truncated,
+    })
+
+def list_all_models():
+    """Полный обход всех whitelist-корней (для старого API /api/models и проверки пути модели)."""
+    models_list = []
+    for root in get_roots():
+        try:
+            for dirpath, dirs, filenames in os.walk(root):
+                if dirpath[len(root):].count(os.sep) > MAX_BROWSE_DEPTH:
+                    dirs[:] = []
+                    continue
+                for fname in filenames:
+                    if fname.lower().endswith('.gguf'):
+                        full_path = os.path.join(dirpath, fname)
+                        if not is_under_roots(full_path):
+                            continue
+                        try:
+                            size = os.path.getsize(full_path)
+                        except OSError:
+                            continue
+                        models_list.append({
+                            "name": fname, "path": full_path,
+                            "rel_path": os.path.relpath(full_path, root),
+                            "size_gb": round(size / (1024 ** 3), 2),
+                            "size_human": human_size(size),
+                        })
+        except Exception as e:
+            logging.error(f"Ошибка сканирования {root}: {e}")
+    models_list.sort(key=lambda x: x['rel_path'])
+    return models_list
 
 @app.route('/')
 def index():
@@ -389,19 +530,15 @@ def delete_instance(name):
 
 @app.route('/api/models', methods=['GET'])
 def get_models():
-    if not os.path.exists(CACHE_FILE): scan_models_to_cache()
-    try:
-        with open(CACHE_FILE, 'r', encoding='utf-8') as f: return jsonify(json.load(f))
-    except: return err("err_generic", 500)
+    """Совместимость со старым API: полный рекурсивный обход whitelist-корней."""
+    return jsonify(list_all_models())
 
 @app.route('/api/models/refresh', methods=['POST'])
 def refresh_models():
-    success = scan_models_to_cache()
-    return jsonify({"status": "OK"}) if success else err("err_generic", 500)
+    """Ленивому браузеру кэш не нужен — актуальный список корней всегда отдаётся напрямую."""
+    return jsonify({"status": "OK", "roots": get_roots()})
 
 if __name__ == '__main__':
-    if not os.path.exists(CACHE_FILE):
-        scan_models_to_cache()
     try:
         print("======================================")
         print("🚀 Панель управления LlamaPanel запущена!")

@@ -131,5 +131,12 @@
   "status_detail_port_health": "порт {port}, /health OK",
   "status_detail_port_loading": "порт {port} слушается, но модель ещё не готова",
   "status_detail_port_down": "сессия есть, но порт {port} не слушается",
-  "err_tmux_attach": "не удалось подключиться к сессии"
+  "err_tmux_attach": "не удалось подключиться к сессии",
+  "err_path_forbidden": "Путь лежит вне разрешённых папок с моделями",
+  "err_path_not_found": "Папка не найдена",
+  "err_path_denied": "Нет прав на чтение этой папки",
+  "explorer_loading": "Загрузка…",
+  "explorer_no_roots": "Разрешённые папки с моделями не настроены. Укажите LLAMA_MODELS_DIRS при запуске панели.",
+  "explorer_roots_title": "Корневая папка",
+  "explorer_truncated": "Слишком много файлов в папке — показаны не все"
 }
