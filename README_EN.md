@@ -10,7 +10,7 @@ A web panel for managing local LLM servers based on `llama.cpp`. Allows you to s
 
 ## 📦 Installation (Linux)
 
-Designed for Ubuntu/Debian-like systems.
+Designed for Ubuntu/Debian-like systems. You will need `sudo` privileges to install system packages.
 
 1. **Clone the repository:**
    ```bash
@@ -24,15 +24,16 @@ Designed for Ubuntu/Debian-like systems.
    ```
 
 3. **Run the installation:**
-   The script will check for all dependencies (and prompt to install missing ones via `apt`), automatically download `llama.cpp` sources, compile them for your hardware (with CUDA support if found), and place the binaries in the correct folders.
+   The script will automatically check and install missing system packages (`cmake`, `tmux`, `curl`, etc.), create an isolated Python environment (`venv`), download `llama.cpp` sources, and compile them for your hardware.
+   *(If you have low RAM, the script will automatically limit build threads to prevent OOM crash).*
    ```bash
    ./install.sh
    ```
 
-4. **Install Python dependencies and run:**
+4. **Start the panel:**
+   After successful installation, simply run:
    ```bash
-   sudo apt install -y python3-flask
-   python3 web_panel/app.py
+   ./run.sh
    ```
 
 5. **Open the panel:**
