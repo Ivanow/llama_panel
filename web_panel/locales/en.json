@@ -131,5 +131,12 @@
   "status_detail_port_health": "port {port}, /health OK",
   "status_detail_port_loading": "port {port} is listening, but the model is not ready yet",
   "status_detail_port_down": "session exists, but port {port} is not listening",
-  "err_tmux_attach": "can't attach to session"
+  "err_tmux_attach": "can't attach to session",
+  "err_path_forbidden": "This path is outside the allowed model folders",
+  "err_path_not_found": "Folder not found",
+  "err_path_denied": "No permission to read this folder",
+  "explorer_loading": "Loading...",
+  "explorer_no_roots": "No allowed model folders are configured. Set LLAMA_MODELS_DIRS when starting the panel.",
+  "explorer_roots_title": "Root folder",
+  "explorer_truncated": "Too many files in this folder — not all are shown"
 }

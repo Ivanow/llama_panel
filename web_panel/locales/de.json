@@ -131,5 +131,12 @@
   "status_detail_port_health": "Port aktiv, Serverzustand prüfen",
   "status_detail_port_loading": "Port offen, Modell wird noch geladen",
   "status_detail_port_down": "Port geschlossen",
-  "err_tmux_attach": "tmux ist nicht installiert oder die Sitzung existiert nicht"
+  "err_tmux_attach": "tmux ist nicht installiert oder die Sitzung existiert nicht",
+  "err_path_forbidden": "Dieser Pfad liegt außerhalb der erlaubten Modellordner",
+  "err_path_not_found": "Ordner nicht gefunden",
+  "err_path_denied": "Keine Berechtigung, diesen Ordner zu lesen",
+  "explorer_loading": "Wird geladen…",
+  "explorer_no_roots": "Keine erlaubten Modellordner konfiguriert. LLAMA_MODELS_DIRS beim Start der Panel festlegen.",
+  "explorer_roots_title": "Stammordner",
+  "explorer_truncated": "Zu viele Dateien in diesem Ordner – nicht alle werden angezeigt"
 }

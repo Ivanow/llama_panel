@@ -320,21 +320,56 @@ async function saveInstance(event) {
     finally { submitBtn.innerText = originalText; submitBtn.disabled = false; }
 }
 
-/* ==================== ПРОВОДНИК МОДЕЛЕЙ ==================== */
+/* ==================== ПРОВОДНИК МОДЕЛЕЙ (ленивый браузер) ==================== */
 let explorerTarget = 'main';
-function openExplorer(target) {
+let browseRoots = [];      // корневые папки из /api/browse/roots
+let browseCwd = '';        // текущая абсолютная директория
+let browseData = null;     // ответ /api/browse для текущей директории
+
+async function fetchBrowse(path) {
+    const res = await fetch('/api/browse?path=' + encodeURIComponent(path));
+    if (!res.ok) {
+        let msg = t('err_generic');
+        try { const d = await res.json(); msg = d.error || msg; } catch(e) {}
+        throw new Error(msg);
+    }
+    return res.json();
+}
+
+async function openExplorer(target) {
     explorerTarget = target;
     document.getElementById('explorerModal').classList.add('active');
-    if (allModels.length === 0) {
-        document.getElementById('model-list').innerHTML = '<div style="padding:20px; text-align:center; color:#888;">' + t('explorer_scanning') + '</div>';
-        fetch('/api/models')
-            .then(res => res.json())
-            .then(data => { allModels = data; buildTree(); renderExplorer(); })
-            .catch(() => { document.getElementById('model-list').innerHTML = '<div style="padding:20px; color:red;">' + t('err_generic') + '</div>'; });
-    } else {
-        renderExplorer();
+    document.getElementById('model-search').value = '';
+    const list = document.getElementById('model-list');
+    list.innerHTML = '<div style="padding:20px; text-align:center; color:#888;">' + t('explorer_loading') + '</div>';
+    try {
+        if (browseRoots.length === 0) {
+            const r = await fetch('/api/browse/roots');
+            const d = await r.json();
+            browseRoots = d.roots || [];
+        }
+        if (browseRoots.length === 0) {
+            list.innerHTML = '<div style="padding:20px; text-align:center; color:#888;">' + t('explorer_no_roots') + '</div>';
+            return;
+        }
+        await loadFolder(browseRoots[0]);
+    } catch (e) {
+        list.innerHTML = '<div style="padding:20px; color:red;">' + (e.message || t('err_generic')) + '</div>';
     }
 }
+
+async function loadFolder(path) {
+    const list = document.getElementById('model-list');
+    list.innerHTML = '<div style="padding:20px; text-align:center; color:#888;">' + t('explorer_loading') + '</div>';
+    try {
+        browseData = await fetchBrowse(path);
+        browseCwd = browseData.cwd;
+        renderExplorer();
+    } catch (e) {
+        list.innerHTML = '<div style="padding:20px; color:red;">' + (e.message || t('err_generic')) + '</div>';
+    }
+}
+
 function closeExplorer() {
     document.getElementById('explorerModal').classList.remove('active');
     document.getElementById('model-search').value = '';
@@ -446,8 +481,6 @@ function buildArgs() {
 }
 
 let allModels = [];
-let fileTree = {};
-let currentPath = [];
 
 // Предупреждение о Draft переводится из языкового пакета
 function updateDraftWarning() {
@@ -455,62 +488,73 @@ function updateDraftWarning() {
     if (el) el.innerHTML = t('draft_warning');
 }
 
-function buildTree() {
-    fileTree = { files: [], folders: {} };
-    allModels.forEach(m => {
-        const parts = m.rel_path.split('/');
-        let current = fileTree;
-        for (let i = 0; i < parts.length - 1; i++) {
-            if (!current.folders[parts[i]]) current.folders[parts[i]] = { files: [], folders: {} };
-            current = current.folders[parts[i]];
-        }
-        current.files.push(m);
-    });
+function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-function getCurrentFolder() {
-    let current = fileTree;
-    for (const folder of currentPath) {
-        if (current.folders[folder]) current = current.folders[folder];
-    }
-    return current;
-}
+
 function renderExplorer() {
     const list = document.getElementById('model-list');
     const breadcrumbs = document.getElementById('breadcrumbs');
     const btnUp = document.getElementById('btn-up');
     const query = document.getElementById('model-search').value.toLowerCase();
+    if (!browseData) return;
 
     breadcrumbs.innerHTML = '';
-    const rootSpan = document.createElement('span');
-    rootSpan.innerText = t('explorer_root');
-    rootSpan.onclick = () => { currentPath = []; renderExplorer(); };
-    breadcrumbs.appendChild(rootSpan);
 
-    currentPath.forEach((folder, index) => {
+    // Выпадающий список корневых папок (whitelist) — навигация между разными дисками/папками
+    const rootSel = document.createElement('select');
+    rootSel.className = 'root-select';
+    rootSel.title = t('explorer_roots_title');
+    browseRoots.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.textContent = r;
+        if (r === browseData.root) opt.selected = true;
+        rootSel.appendChild(opt);
+    });
+    rootSel.onchange = () => loadFolder(rootSel.value);
+    breadcrumbs.appendChild(rootSel);
+
+    // Хлебные крошки внутри текущей корневой папки
+    const rel = browseData.cwd.startsWith(browseData.root + '/')
+        ? browseData.cwd.slice(browseData.root.length + 1) : '';
+    const chain = rel ? rel.split('/') : [];
+    let acc = browseData.root;
+    chain.forEach((part, index) => {
+        acc = acc + '/' + part;
+        const sep = document.createElement('span');
+        sep.className = 'crumb-sep';
+        sep.textContent = '/';
+        breadcrumbs.appendChild(sep);
         const span = document.createElement('span');
-        span.innerText = folder;
-        span.onclick = () => { currentPath = currentPath.slice(0, index + 1); renderExplorer(); };
+        span.className = 'crumb';
+        span.innerText = part;
+        const target = acc;
+        span.onclick = () => loadFolder(target);
         breadcrumbs.appendChild(span);
     });
 
-    btnUp.style.display = currentPath.length > 0 ? 'flex' : 'none';
-    const currentFolder = getCurrentFolder();
-    const folders = Object.keys(currentFolder.folders).sort();
-    const files = currentFolder.files;
+    btnUp.style.display = browseData.parent ? 'flex' : 'none';
+
+    const folders = browseData.folders;
+    const files = browseData.files;
     list.innerHTML = '';
 
     if (!query) {
-        folders.forEach(folderName => {
+        folders.forEach(folder => {
             const div = document.createElement('div');
             div.className = 'explorer-item folder';
-            div.innerHTML = '<div style="display:flex; align-items:center; gap:8px;"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> <b>' + folderName + '</b></div>';
-            div.onclick = () => { currentPath.push(folderName); renderExplorer(); };
+            div.innerHTML = '<div style="display:flex; align-items:center; gap:8px;"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> <b>' + escapeHtml(folder.name) + '</b></div>';
+            div.onclick = () => loadFolder(folder.path);
             list.appendChild(div);
         });
     }
-    const filteredFiles = files.filter(f => f.name.toLowerCase().includes(query) || f.rel_path.toLowerCase().includes(query));
-    if (filteredFiles.length === 0 && folders.length === 0) {
+    const filteredFiles = files.filter(f => f.name.toLowerCase().includes(query) || f.path.toLowerCase().includes(query));
+    if (filteredFiles.length === 0 && (folders.length === 0 || query)) {
         list.innerHTML += '<div style="padding:20px; text-align:center; color:#888;">' + t('explorer_empty') + '</div>';
+    }
+    if (browseData.truncated) {
+        list.innerHTML += '<div style="padding:10px 20px; text-align:center; color:#c9a227; font-size:13px;">' + t('explorer_truncated') + '</div>';
     }
     filteredFiles.forEach(f => {
         const div = document.createElement('div');
@@ -519,11 +563,11 @@ function renderExplorer() {
             <div style="display:flex; align-items:center; gap:8px;">
                 <svg viewBox="0 0 24 24"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
                 <div>
-                    <b>${f.name}</b>
-                    <span class="file-path">${f.rel_path}</span>
+                    <b>${escapeHtml(f.name)}</b>
+                    <span class="file-path">${escapeHtml(f.path)}</span>
                 </div>
             </div>
-            <span class="size">${f.size_gb} GB</span>
+            <span class="size">${f.size_human || (f.size_gb + ' GB')}</span>
         `;
         div.onclick = () => {
             if (explorerTarget === 'main') document.getElementById('new-model').value = f.path;
@@ -535,7 +579,7 @@ function renderExplorer() {
     });
 }
 function goUp() {
-    if (currentPath.length > 0) { currentPath.pop(); renderExplorer(); }
+    if (browseData && browseData.parent) loadFolder(browseData.parent);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {

@@ -1,5 +1,6 @@
 #!/bin/bash
-BASE_DIR="/stor001/llama_server"
+# BASE_DIR можно переопределить переменной окружения LLAMA_BASE_DIR
+BASE_DIR="${LLAMA_BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 BIN="$BASE_DIR/build/bin/llama-server"
 INSTANCE=$1
 ACTION=$2

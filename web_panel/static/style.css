@@ -155,11 +155,11 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 .explorer { display: none; flex-direction: column; overflow: hidden; }
 .explorer-header { display: flex; padding: 10px; gap: 10px; border-bottom: 1px solid var(--glass-border); background: rgba(0,0,0,0.1); align-items: center;}
 .explorer-header input { flex: 1; padding: 8px 12px; font-size: 13px; }
-.breadcrumbs { padding: 10px 15px; font-size: 13px; color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; flex-wrap: wrap; gap: 4px; }
-.breadcrumbs span { cursor: pointer; transition: 0.2s; }
-.breadcrumbs span:hover { color: var(--accent); }
-.breadcrumbs span:not(:last-child)::after { content: "/"; color: #555; margin: 0 6px; cursor: default; }
-.breadcrumbs span:last-child { color: var(--text-main); font-weight: 500; cursor: default; }
+.breadcrumbs { padding: 10px 15px; font-size: 13px; color: var(--text-muted); border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.breadcrumbs .crumb { cursor: pointer; transition: 0.2s; }
+.breadcrumbs .crumb:hover { color: var(--accent); }
+.breadcrumbs .crumb-sep { color: #555; margin: 0 2px; cursor: default; }
+.root-select { background-color: #16202f; color: var(--text-main); border: 1px solid var(--glass-border); border-radius: 8px; padding: 4px 8px; font-size: 13px; max-width: 320px; cursor: pointer; }
 .explorer-list { overflow-y: auto; min-height: 200px; max-height: 350px; padding: 8px; }
 .explorer-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; cursor: pointer; border-radius: 8px; font-size: 14px; transition: 0.15s; }
 .explorer-item:hover { background: rgba(255,255,255,0.05); }
