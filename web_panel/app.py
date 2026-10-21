@@ -110,7 +110,6 @@ def get_instances():
     parsed_data = []
     running_ports = []
 
-    # ПЕРВЫЙ ПРОХОД: собираем данные и узнаем, какие порты уже заняты
     for conf_path in confs:
         name = os.path.basename(conf_path).replace(".conf", "")
         if not is_valid_name(name): continue
@@ -126,18 +125,15 @@ def get_instances():
         if is_running and port != "?":
             running_ports.append(port)
 
-    # ВТОРОЙ ПРОХОД: проверяем конфликты и память
     for data in parsed_data:
         can_start = True
         reason = ""
 
         if not data["is_running"]:
-            # 1. Проверка занятости порта
             if data["port"] in running_ports:
                 can_start = False
                 reason = f"Порт {data['port']} занят другим сервером"
             
-            # 2. Проверка памяти (выполняется, только если порт свободен)
             elif os.path.exists(data["model_path"]):
                 file_size_mb = os.path.getsize(data["model_path"]) / (1024 * 1024)
                 actual_gpu_layers = min(data["gpu_layers"], 99)
@@ -197,7 +193,6 @@ def create_instance():
     conf_path = os.path.join(INSTANCES_DIR, f"{name}.conf")
     if os.path.exists(conf_path): return jsonify({"error": "Имя уже занято"}), 400
 
-    # Дополнительная проверка: не занят ли порт другим конфигом (даже выключенным)
     for c_path in glob.glob(os.path.join(INSTANCES_DIR, "*.conf")):
         p, _, _, _, _ = parse_conf(c_path)
         if p == port:
@@ -229,7 +224,6 @@ def update_instance(name):
     conf_path = os.path.join(INSTANCES_DIR, f"{name}.conf")
     if not os.path.exists(conf_path): return jsonify({"error": "Конфиг не найден"}), 404
 
-    # Проверка, что новый порт не занят другим конфигом
     for c_path in glob.glob(os.path.join(INSTANCES_DIR, "*.conf")):
         if c_path == conf_path: continue
         p, _, _, _, _ = parse_conf(c_path)
@@ -273,5 +267,17 @@ def refresh_models():
     return jsonify({"status": "OK"}) if success else (jsonify({"error": "Ошибка"}), 500)
 
 if __name__ == '__main__':
-    if not os.path.exists(CACHE_FILE): scan_models_to_cache()
-    app.run(host='0.0.0.0', port=8090, debug=False)
+    if not os.path.exists(CACHE_FILE):
+        scan_models_to_cache()
+    try:
+        print("======================================")
+        print("🚀 Панель управления LlamaPanel запущена!")
+        print("👉 Откройте в браузере: http://<IP_СЕРВЕРА>:8090")
+        print("======================================")
+        app.run(host='0.0.0.0', port=8090, debug=False)
+    except OSError as e:
+        if "Address already in use" in str(e) or "10048" in str(e):
+            print("\n❌ ОШИБКА: Порт 8090 уже занят другим процессом.")
+            print("Возможно, панель уже запущена. Проверьте: ss -tulpn | grep 8090")
+        else:
+            print(f"\n❌ ОШИБКА при запуске сервера: {e}")

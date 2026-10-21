@@ -2,21 +2,15 @@
 
 **[Russian version (README.md)](README.md)**
 
-**Author:** Kayro
-**Repository:** https://github.com/Ivanow/llama_panel
+**Author:** Kayro | **Repository:** https://github.com/Ivanow/llama_panel
 
-A web panel for easy management of local LLM servers based on `llama.cpp`. It allows you to start, stop, and edit model configurations through a modern web interface, bypassing manual argument typing in the terminal.
+A web panel for managing local LLM servers based on `llama.cpp`. Allows you to start, stop, and edit model configurations through a modern web interface. Includes resource checking (VRAM/RAM), port checking, and an argument builder.
 
 ![LlamaPanel Screenshot](doc/images/llama_panel.jpg)
 
-## 🚀 Features
-- **Lifecycle Management**: Start, stop, and restart servers with one click (via `tmux`).
-- **Smart Resource Check**: The panel automatically queries `nvidia-smi` and system memory (RAM).
-- **Port Checking**: Prevents running two servers on the same port.
-- **Visual Argument Builder**: Convenient selection of parameters (Flash Attention, Draft, Vision, etc.).
-- **Built-in File Explorer**: Select `.gguf` files directly from the web interface.
+## 📦 Installation (Linux)
 
-## 📦 Quick Installation (Linux)
+Designed for Ubuntu/Debian-like systems.
 
 1. **Clone the repository:**
    ```bash
@@ -24,19 +18,24 @@ A web panel for easy management of local LLM servers based on `llama.cpp`. It al
    cd llama_panel
    ```
 
-2. **Run the installation script:**
-   It will check dependencies (CUDA, cmake), download `llama.cpp` sources, compile them for your hardware, and place the binaries in the correct folders.
+2. **Make the installation script executable:**
+   ```bash
+   chmod +x install.sh
+   ```
+
+3. **Run the installation:**
+   The script will check for all dependencies (and prompt to install missing ones via `apt`), automatically download `llama.cpp` sources, compile them for your hardware (with CUDA support if found), and place the binaries in the correct folders.
    ```bash
    ./install.sh
    ```
 
-3. **Install Python dependencies and run:**
+4. **Install Python dependencies and run:**
    ```bash
-   pip install -r requirements.txt
+   sudo apt install -y python3-flask
    python3 web_panel/app.py
    ```
 
-4. **Open the panel:**
+5. **Open the panel:**
    Navigate to `http://<YOUR_SERVER_IP>:8090`.
 
 ## 📄 Documentation
