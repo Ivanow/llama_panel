@@ -27,6 +27,7 @@ LOCALE_NAMES = {  # display names for language menu; unknown codes shown as-is
     "ru": "Русский",
     "en": "English",
     "tr": "Türkçe",
+    "zh_CN": "中文(简体)",
     "de": "Deutsch",
     "fr": "Français",
     "es": "Español",
