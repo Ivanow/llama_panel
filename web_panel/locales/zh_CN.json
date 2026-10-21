@@ -137,6 +137,7 @@
   "err_path_denied": "没有读取此文件夹的权限",
   "explorer_loading": "加载中...",
   "explorer_no_roots": "未配置允许的模型文件夹。启动面板时请设置 LLAMA_MODELS_DIRS。",
+  "explorer_root_missing": "未找到文件夹",
   "explorer_roots_title": "根文件夹",
   "explorer_truncated": "此文件夹中文件过多——未全部显示"
 }

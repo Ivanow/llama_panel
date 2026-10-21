@@ -137,6 +137,7 @@
   "err_path_denied": "Aucune autorisation de lire ce dossier",
   "explorer_loading": "Chargement...",
   "explorer_no_roots": "Aucun dossier de modèles autorisé configuré. Définissez LLAMA_MODELS_DIRS au démarrage du panneau.",
+  "explorer_root_missing": "dossier introuvable",
   "explorer_roots_title": "Dossier racine",
   "explorer_truncated": "Trop de fichiers dans ce dossier — tous ne sont pas affichés"
 }

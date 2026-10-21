@@ -346,13 +346,14 @@ async function openExplorer(target) {
         if (browseRoots.length === 0) {
             const r = await fetch('/api/browse/roots');
             const d = await r.json();
-            browseRoots = d.roots || [];
+            browseRoots = d.roots || [];   // [{path, exists}, ...]
         }
         if (browseRoots.length === 0) {
             list.innerHTML = '<div style="padding:20px; text-align:center; color:#888;">' + t('explorer_no_roots') + '</div>';
             return;
         }
-        await loadFolder(browseRoots[0]);
+        const first = browseRoots.find(x => x.exists) || browseRoots[0];
+        await loadFolder(first.path);
     } catch (e) {
         list.innerHTML = '<div style="padding:20px; color:red;">' + (e.message || t('err_generic')) + '</div>';
     }
@@ -507,9 +508,9 @@ function renderExplorer() {
     rootSel.title = t('explorer_roots_title');
     browseRoots.forEach(r => {
         const opt = document.createElement('option');
-        opt.value = r;
-        opt.textContent = r;
-        if (r === browseData.root) opt.selected = true;
+        opt.value = r.path;
+        opt.textContent = r.exists ? r.path : (r.path + ' — ' + t('explorer_root_missing'));
+        if (r.path === browseData.root) opt.selected = true;
         rootSel.appendChild(opt);
     });
     rootSel.onchange = () => loadFolder(rootSel.value);

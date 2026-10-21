@@ -28,16 +28,34 @@ INSTANCES_DIR = os.path.join(BASE_DIR, "instances")
 MANAGER_SH = os.path.join(BASE_DIR, "manager.sh")
 CACHE_FILE = os.path.join(BASE_DIR, "web_panel", "models_cache.json")
 
-_DEFAULT_MODEL_ROOTS = ["/stor001/models", os.path.expanduser("~/models")]
-_env_roots = _env_list("LLAMA_MODELS_DIRS")
-if _env_roots:
-    MODEL_ROOTS = [os.path.abspath(p) for p in _env_roots]
-else:
-    # совместимость с историческим MODELS_DIR и дефолтные кандидаты
-    legacy = os.environ.get("MODELS_DIR")
-    candidates = ([legacy] if legacy else []) + _DEFAULT_MODEL_ROOTS
+# Кандидаты по умолчанию, если LLAMA_MODELS_DIRS не задан.
+# Папка из примеров (/stor001/models) тоже участвует — для совместимости со старой установкой.
+_DEFAULT_MODEL_ROOTS = [
+    "/stor001/models",
+    os.path.expanduser("~/models"),
+    os.path.join(BASE_DIR, "models"),   # models/ рядом с репозиторием
+]
+
+def build_model_roots():
+    """Whitelist корневых папок проводника моделей.
+
+    1) Явные настройки всегда имеют приоритет (даже если пока не существуют):
+       LLAMA_MODELS_DIRS (список через ',' или ':'), затем исторический MODELS_DIR.
+    2) Если ничего не задано — берутся существующие кандидаты по умолчанию;
+       если и они отсутствуют — отдаём первый кандидат как «ожидаемый» путь,
+       чтобы панель могла подсказать пользователю, что именно создать/настроить.
+    """
+    env_roots = _env_list("LLAMA_MODELS_DIRS")
+    legacy = os.environ.get("MODELS_DIR", "").strip()
+    if not env_roots and legacy:
+        env_roots = [legacy]
+    if env_roots:
+        return [os.path.abspath(os.path.expanduser(p)) for p in env_roots]
+    candidates = [os.path.abspath(os.path.expanduser(p)) for p in _DEFAULT_MODEL_ROOTS]
     existing = [p for p in candidates if os.path.isdir(p)]
-    MODEL_ROOTS = [os.path.abspath(p) for p in (existing or _DEFAULT_MODEL_ROOTS)]
+    return existing or [candidates[0]]
+
+MODEL_ROOTS = build_model_roots()
 
 LOG_FILE = os.path.join(WEB_PANEL_DIR, "panel_error.log")
 try:
@@ -164,16 +182,30 @@ MAX_BROWSE_DEPTH = 8      # глубина от корня whitelist
 MAX_FILES_PER_DIR = 500   # максимум .gguf-файлов на одну директорию
 
 def get_roots():
-    """Актуальный список доступных корневых папок (только существующие директории)."""
+    """Список корневых папок whitelist для проводника.
+
+    В отличие от старой версии, НЕ молча выбрасывает отсутствующие директории:
+    пользователь явно настроил корень через LLAMA_MODELS_DIRS — он и так не сможет
+    выйти за whitelist, поэтому путь остаётся в списке с флагом exists=False
+    (UI подскажет, что папка пока не найдена). Если не существует ни один корень —
+    добавляется стандартный candidate ~/models, чтобы проводник не был пустым.
+    """
     roots = []
     for r in MODEL_ROOTS:
         try:
             real = os.path.realpath(r)
         except Exception:
             continue
-        if os.path.isdir(real) and real not in roots:
-            roots.append(real)
+        if real not in [x["path"] for x in roots]:
+            roots.append({"path": real, "exists": os.path.isdir(real)})
+    if not any(x["exists"] for x in roots):
+        home_models = os.path.abspath(os.path.expanduser("~/models"))
+        if home_models not in [x["path"] for x in roots]:
+            roots.append({"path": home_models, "exists": os.path.isdir(home_models)})
     return roots
+
+def _root_paths():
+    return [x["path"] for x in get_roots()]
 
 def is_under_roots(path):
     """Проверка, что path находится внутри одного из корней whitelist (без выхода '..')."""
@@ -181,7 +213,7 @@ def is_under_roots(path):
         real = os.path.realpath(path)
     except Exception:
         return False
-    for root in get_roots():
+    for root in _root_paths():
         try:
             common = os.path.commonpath([root, real])
         except ValueError:
@@ -204,7 +236,7 @@ def browse_roots():
 def browse_dir():
     lang = get_locale()
     rel = request.args.get('path', '') or ''
-    roots = get_roots()
+    roots = _root_paths()
     if os.path.isabs(rel):
         target = os.path.abspath(rel)
     else:
@@ -217,7 +249,7 @@ def browse_dir():
 
     depth = 0
     inside_root = ""
-    for root in get_roots():
+    for root in roots:
         if os.path.commonpath([root, target]) == root:
             inside_root = root
             rel_to_root = os.path.relpath(target, root)
@@ -272,7 +304,7 @@ def browse_dir():
 def list_all_models():
     """Полный обход всех whitelist-корней (для старого API /api/models и проверки пути модели)."""
     models_list = []
-    for root in get_roots():
+    for root in _root_paths():
         try:
             for dirpath, dirs, filenames in os.walk(root):
                 if dirpath[len(root):].count(os.sep) > MAX_BROWSE_DEPTH:

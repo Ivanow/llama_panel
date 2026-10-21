@@ -137,6 +137,7 @@
   "err_path_denied": "Sin permiso para leer esta carpeta",
   "explorer_loading": "Cargando...",
   "explorer_no_roots": "No hay carpetas de modelos permitidas configuradas. Defina LLAMA_MODELS_DIRS al iniciar el panel.",
+  "explorer_root_missing": "carpeta no encontrada",
   "explorer_roots_title": "Carpeta raíz",
   "explorer_truncated": "Demasiados archivos en esta carpeta: no se muestran todos"
 }
