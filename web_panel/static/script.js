@@ -1,47 +1,138 @@
 setInterval(updateAllStatuses, 10000);
 let currentEditMode = false;
 
+/* ==================== ЛОКАЛИЗАЦИЯ (i18n) ==================== */
+let I18N = {};          // текущий языковой пакет (ключ -> строка)
+let I18N_LANG = 'ru';   // текущий язык
+let I18N_AVAILABLE = {};// доступные языки: {код: отображаемое имя} — приходит с сервера
+
+function t(key, vars) {
+    let s = I18N[key];
+    if (s === undefined) s = key;
+    if (vars) Object.keys(vars).forEach(v => { s = s.split('{' + v + '}').join(vars[v]); });
+    return s;
+}
+
+async function loadI18n() {
+    try {
+        const res = await fetch('/api/i18n');
+        const data = await res.json();
+        I18N_LANG = data.lang;
+        I18N_AVAILABLE = data.available || {};
+        I18N = data.strings || {};
+        applyStaticTranslations();
+        renderLangList();
+    } catch (e) { console.error('i18n load error:', e); }
+}
+
+// Перевод всех элементов с data-i18n / data-i18n-title / data-i18n-placeholder
+function applyStaticTranslations() {
+    document.querySelectorAll('[data-i18n]').forEach(el => { el.innerHTML = t(el.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = t(el.dataset.i18nTitle); });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { el.placeholder = t(el.dataset.i18nPlaceholder); });
+    document.documentElement.lang = I18N_LANG;
+    const cl = document.getElementById('current-lang');
+    if (cl) cl.innerText = I18N_AVAILABLE[I18N_LANG] || I18N_LANG;
+    updateDraftWarning();
+}
+
+// Языковой список строится САМ из тех пакетов, что нашлись на сервере (/api/i18n)
+function renderLangList() {
+    const list = document.getElementById('lang-list');
+    if (!list) return;
+    list.innerHTML = '';
+    Object.keys(I18N_AVAILABLE).sort().forEach(code => {
+        const item = document.createElement('div');
+        item.className = 'lang-option' + (code === I18N_LANG ? ' active' : '');
+        item.innerHTML = '<span class="lang-check">' + (code === I18N_LANG ? '✓' : '') + '</span>' +
+                         '<span>' + I18N_AVAILABLE[code] + '</span>';
+        item.onclick = (ev) => { ev.stopPropagation(); setLanguage(code); };
+        list.appendChild(item);
+    });
+}
+
+function setLanguage(code) {
+    document.cookie = 'lang=' + encodeURIComponent(code) + ';path=/;max-age=31536000;samesite=Lax';
+    location.reload();
+}
+
+/* ==================== МЕНЮ ШЕСТЕРЁНКИ ==================== */
+function toggleSettingsMenu(ev) {
+    ev.stopPropagation();
+    const menu = document.getElementById('settings-menu');
+    const btn = document.getElementById('btn-settings');
+    const willOpen = !menu.classList.contains('open');
+    menu.classList.toggle('open', willOpen);
+    btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    if (!willOpen) document.getElementById('lang-list').classList.remove('open');
+}
+
+function toggleLangList(ev) {
+    ev.stopPropagation();
+    document.getElementById('lang-list').classList.toggle('open');
+}
+
+function closeSettingsMenu() {
+    const menu = document.getElementById('settings-menu');
+    menu.classList.remove('open');
+    document.getElementById('lang-list').classList.remove('open');
+    document.getElementById('btn-settings').setAttribute('aria-expanded', 'false');
+}
+
+document.addEventListener('click', () => closeSettingsMenu());
+
+/* ==================== РУКОВОДСТВО ==================== */
+function openGuide() {
+    closeSettingsMenu();
+    document.getElementById('guide-body').innerHTML = t('guide_html');
+    document.getElementById('guideModal').classList.add('active');
+}
+function closeGuide() {
+    document.getElementById('guideModal').classList.remove('active');
+}
+
+/* ==================== КАРТОЧКИ ИНСТАНСОВ ==================== */
 async function loadInstances() {
     const grid = document.getElementById('instances-grid');
     try {
         const response = await fetch('/api/instances');
         const instances = await response.json();
         grid.innerHTML = '';
-        if (instances.length === 0) { grid.innerHTML = '<p>Нет настроенных серверов.</p>'; return; }
+        if (instances.length === 0) { grid.innerHTML = '<p>' + t('no_servers') + '</p>'; return; }
 
         instances.forEach(inst => {
             const card = document.createElement('div');
             card.className = 'card' + (inst.can_start === false ? ' disabled' : '');
             card.id = 'card-' + inst.name;
-            
+
             card.innerHTML = `
                 <div class="card-header">
                     <span class="card-title" id="title-${inst.name}">${inst.name}</span>
                     <div style="display:flex; align-items:center; gap:5px;">
                         <span class="status-dot" id="dot-${inst.name}"></span>
-                        <button onclick="editInstance('${inst.name}')" style="padding: 4px; background: transparent; border: none; cursor: pointer; color: var(--text-muted);" title="Редактировать">
+                        <button onclick="editInstance('${inst.name}')" style="padding: 4px; background: transparent; border: none; cursor: pointer; color: var(--text-muted);" title="${t('title_edit')}">
                             <svg viewBox="0 0 24 24" style="width: 16px; height: 16px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         </button>
-                        <button onclick="deleteInstance('${inst.name}')" style="padding: 4px; background: transparent; border: none; cursor: pointer; color: var(--text-muted);" title="Удалить конфиг">
+                        <button onclick="deleteInstance('${inst.name}')" style="padding: 4px; background: transparent; border: none; cursor: pointer; color: var(--text-muted);" title="${t('title_delete')}">
                             <svg viewBox="0 0 24 24" style="width: 16px; height: 16px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                     </div>
                 </div>
-                <div class="info">Порт: <span>${inst.port}</span><br>Модель: <span style="font-size:12px;" title="${inst.model}">${inst.model.substring(0, 30)}...</span></div>
+                <div class="info">${t('card_port')}: <span>${inst.port}</span><br>${t('card_model')}: <span style="font-size:12px;" title="${inst.model}">${inst.model.substring(0, 30)}...</span></div>
                 <div class="status-text" id="status-${inst.name}" style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">
-                    ${inst.can_start === false ? inst.reason : 'Проверка...'}
+                    ${inst.can_start === false ? inst.reason : t('checking')}
                 </div>
                 <div class="loader-bar" id="loader-${inst.name}"><div class="loader-fill"></div></div>
                 <div class="controls">
-                    <button class="btn-primary" onclick="doAction('${inst.name}', 'start', this)" ${inst.can_start === false ? 'disabled' : ''}>Старт</button>
-                    <button class="btn-danger" onclick="doAction('${inst.name}', 'stop', this)">Стоп</button>
-                    <button onclick="doAction('${inst.name}', 'restart', this)">Рестарт</button>
+                    <button class="btn-primary" onclick="doAction('${inst.name}', 'start', this)" ${inst.can_start === false ? 'disabled' : ''}>${t('btn_start')}</button>
+                    <button class="btn-danger" onclick="doAction('${inst.name}', 'stop', this)">${t('btn_stop')}</button>
+                    <button onclick="doAction('${inst.name}', 'restart', this)">${t('btn_restart')}</button>
                 </div>
             `;
             grid.appendChild(card);
         });
         updateAllStatuses();
-    } catch (e) { grid.innerHTML = '<p style="color: red;">Ошибка: ' + e + '</p>'; }
+    } catch (e) { grid.innerHTML = '<p style="color: red;">' + t('error_prefix') + ': ' + e + '</p>'; }
 }
 
 async function updateAllStatuses() {
@@ -59,10 +150,10 @@ async function updateAllStatuses() {
             const btnStop = card.querySelectorAll('.controls button')[1];
             const btnRestart = card.querySelectorAll('.controls button')[2];
             const statusText = document.getElementById('status-' + name);
-            
+
             if (statusStr.includes('RUNNING')) {
                 dot.className = 'status-dot online'; title.className = 'card-title title-online';
-                card.classList.remove('disabled'); 
+                card.classList.remove('disabled');
                 btnStart.disabled = true; btnStop.disabled = false; btnRestart.disabled = false;
                 statusText.innerText = statusStr;
             } else if (statusStr.includes('LOADING')) {
@@ -72,7 +163,7 @@ async function updateAllStatuses() {
             } else {
                 dot.className = 'status-dot offline'; title.className = 'card-title title-offline';
                 btnStop.disabled = true; btnRestart.disabled = true;
-                if (statusText.innerText === 'Проверка...') statusText.innerText = statusStr;
+                if (statusText.innerText === t('checking')) statusText.innerText = statusStr;
             }
         } catch(e) { console.error(e); }
     }
@@ -83,45 +174,47 @@ async function doAction(name, action, btn) {
     card.querySelectorAll('.controls button').forEach(b => b.disabled = true);
     const loader = document.getElementById('loader-' + name);
     if (action === 'start' || action === 'restart') loader.classList.add('active');
-    
-    try { 
-        await fetch('/api/action/' + name + '/' + action, { method: 'POST' }); 
-    } 
-    catch(e) { alert('Ошибка: ' + e); } 
-    finally { 
-        loader.classList.remove('active'); 
+
+    try {
+        await fetch('/api/action/' + name + '/' + action, { method: 'POST' });
+    }
+    catch(e) { alert(t('error_prefix') + ': ' + e); }
+    finally {
+        loader.classList.remove('active');
         if (action === 'stop') {
-            setTimeout(loadInstances, 2000); 
+            setTimeout(loadInstances, 2000);
         } else {
-            updateAllStatuses(); 
+            updateAllStatuses();
         }
     }
 }
 
 async function refreshModels() {
     const btn = document.getElementById('btn-refresh-models');
-    const originalText = btn.innerHTML;
+    const originalHTML = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '⏳ Сканирование...';
-    
+    btn.innerHTML = t('alert_scan');
+
     try {
         const res = await fetch('/api/models/refresh', { method: 'POST' });
         if (res.ok) {
             allModels = []; // Сбрасываем локальный кэш
-            alert('✅ Список моделей на сервере обновлен!');
+            alert(t('alert_models_updated'));
         } else {
-            alert('Ошибка при обновлении списка моделей');
+            const data = await res.json().catch(() => ({}));
+            alert(data.error || t('alert_scan_failed'));
         }
     } catch (e) {
-        alert('Ошибка сети: ' + e);
+        alert(t('network_error') + ': ' + e);
     } finally {
         btn.disabled = false;
-        btn.innerHTML = originalText;
+        btn.innerHTML = originalHTML;
+        applyStaticTranslations();
     }
 }
 
 async function deleteInstance(name) {
-    if (!confirm(`Вы уверены, что хотите удалить конфиг "${name}"?`)) return;
+    if (!confirm(t('confirm_delete', { name: name }))) return;
     try {
         const res = await fetch(`/api/instances/${name}/delete`, { method: 'POST' });
         const data = await res.json();
@@ -130,7 +223,7 @@ async function deleteInstance(name) {
         } else {
             alert('⛔ ' + data.error);
         }
-    } catch (e) { alert('Ошибка сети: ' + e); }
+    } catch (e) { alert(t('network_error') + ': ' + e); }
 }
 
 async function editInstance(name) {
@@ -138,13 +231,13 @@ async function editInstance(name) {
         const res = await fetch('/api/instances');
         const instances = await res.json();
         const inst = instances.find(i => i.name === name);
-        if (!inst) return alert('Конфиг не найден');
-        if (inst.is_running) return alert('⛔ Нельзя редактировать запущенный сервер. Сначала нажмите «Стоп».');
+        if (!inst) return alert(t('err_config_not_found'));
+        if (inst.is_running) return alert(t('alert_not_running_edit'));
 
         currentEditMode = true;
-        document.getElementById('modal-title').innerText = "Редактирование: " + name;
-        document.getElementById('btn-submit').innerText = "💾 Сохранить изменения";
-        
+        document.getElementById('modal-title').innerText = t('modal_edit_instance', { name: name });
+        document.getElementById('btn-submit').innerText = t('btn_save_changes');
+
         document.getElementById('new-name').value = inst.name;
         document.getElementById('new-name').disabled = true;
         document.getElementById('new-port').value = inst.port;
@@ -156,26 +249,26 @@ async function editInstance(name) {
         if (modelObj) document.getElementById('new-model').value = modelObj.path;
         else document.getElementById('new-model').value = inst.model;
 
-        document.getElementById('addModal').classList.add('active'); 
+        document.getElementById('addModal').classList.add('active');
         onModeChange();
         document.getElementById('new-args').value = inst.args;
-        
-    } catch(e) { alert('Ошибка загрузки данных: ' + e); }
+
+    } catch(e) { alert(t('error_prefix') + ': ' + e); }
 }
 
-function openModal() { 
+function openModal() {
     currentEditMode = false;
-    document.getElementById('modal-title').innerText = "Новый инстанс";
-    document.getElementById('btn-submit').innerText = "Создать конфиг";
+    document.getElementById('modal-title').innerText = t('modal_new_instance');
+    document.getElementById('btn-submit').innerText = t('btn_create_config');
     document.getElementById('new-name').disabled = false;
     document.getElementById('addForm').reset();
     document.getElementById('new-port').value = 8081;
-    document.getElementById('addModal').classList.add('active'); 
+    document.getElementById('addModal').classList.add('active');
     onModeChange();
 }
 
-function closeModal() { 
-    document.getElementById('addModal').classList.remove('active'); 
+function closeModal() {
+    document.getElementById('addModal').classList.remove('active');
     document.getElementById('args-builder').style.display = 'none';
 }
 
@@ -188,7 +281,7 @@ async function saveInstance(event) {
 
     const submitBtn = document.getElementById('btn-submit');
     const originalText = submitBtn.innerText;
-    submitBtn.innerText = "Сохранение...";
+    submitBtn.innerText = t('saving');
     submitBtn.disabled = true;
 
     const url = currentEditMode ? `/api/instances/${name}/update` : '/api/instances/create';
@@ -205,22 +298,23 @@ async function saveInstance(event) {
             closeModal();
             loadInstances();
         } else {
-            alert('❌ Ошибка: ' + result.error);
+            alert('❌ ' + t('error_prefix') + ': ' + result.error);
         }
-    } catch (e) { alert('Ошибка сети: ' + e); } 
+    } catch (e) { alert(t('network_error') + ': ' + e); }
     finally { submitBtn.innerText = originalText; submitBtn.disabled = false; }
 }
 
+/* ==================== ПРОВОДНИК МОДЕЛЕЙ ==================== */
 let explorerTarget = 'main';
 function openExplorer(target) {
     explorerTarget = target;
     document.getElementById('explorerModal').classList.add('active');
     if (allModels.length === 0) {
-        document.getElementById('model-list').innerHTML = '<div style="padding:20px; text-align:center; color:#888;">Сканирование...</div>';
+        document.getElementById('model-list').innerHTML = '<div style="padding:20px; text-align:center; color:#888;">' + t('explorer_scanning') + '</div>';
         fetch('/api/models')
             .then(res => res.json())
             .then(data => { allModels = data; buildTree(); renderExplorer(); })
-            .catch(() => { document.getElementById('model-list').innerHTML = '<div style="padding:20px; color:red;">Ошибка</div>'; });
+            .catch(() => { document.getElementById('model-list').innerHTML = '<div style="padding:20px; color:red;">' + t('err_generic') + '</div>'; });
     } else {
         renderExplorer();
     }
@@ -272,7 +366,7 @@ function onModeChange() {
         document.getElementById('arg-ctx').value = "512";
         document.getElementById('group-reranking').style.display = 'grid';
     }
-    buildArgs(); 
+    buildArgs();
 }
 
 function buildArgs() {
@@ -339,6 +433,12 @@ let allModels = [];
 let fileTree = {};
 let currentPath = [];
 
+// Предупреждение о Draft переводится из языкового пакета
+function updateDraftWarning() {
+    const el = document.getElementById('draft-warning');
+    if (el) el.innerHTML = t('draft_warning');
+}
+
 function buildTree() {
     fileTree = { files: [], folders: {} };
     allModels.forEach(m => {
@@ -363,10 +463,10 @@ function renderExplorer() {
     const breadcrumbs = document.getElementById('breadcrumbs');
     const btnUp = document.getElementById('btn-up');
     const query = document.getElementById('model-search').value.toLowerCase();
-    
+
     breadcrumbs.innerHTML = '';
     const rootSpan = document.createElement('span');
-    rootSpan.innerText = 'Модели';
+    rootSpan.innerText = t('explorer_root');
     rootSpan.onclick = () => { currentPath = []; renderExplorer(); };
     breadcrumbs.appendChild(rootSpan);
 
@@ -394,7 +494,7 @@ function renderExplorer() {
     }
     const filteredFiles = files.filter(f => f.name.toLowerCase().includes(query) || f.rel_path.toLowerCase().includes(query));
     if (filteredFiles.length === 0 && folders.length === 0) {
-        list.innerHTML += '<div style="padding:20px; text-align:center; color:#888;">Пусто</div>';
+        list.innerHTML += '<div style="padding:20px; text-align:center; color:#888;">' + t('explorer_empty') + '</div>';
     }
     filteredFiles.forEach(f => {
         const div = document.createElement('div');
@@ -421,4 +521,8 @@ function renderExplorer() {
 function goUp() {
     if (currentPath.length > 0) { currentPath.pop(); renderExplorer(); }
 }
-document.addEventListener('DOMContentLoaded', loadInstances);
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadI18n();
+    loadInstances();
+});
