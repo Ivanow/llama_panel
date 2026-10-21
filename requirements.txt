@@ -1,1 +1,45 @@
+# ============================================================
+# LlamaPanel — Python-зависимости (устанавливаются автоматически)
+#   python3 -m venv venv && source venv/bin/activate
+#   pip install -r requirements.txt
+# ============================================================
+
+# --- Веб-панель (Flask-приложение web_panel/app.py) ---
 Flask>=3.0.0
+Werkzeug>=3.0.0        # WSGI-сервер/инструменты (зависимость Flask, фиксируем минимум)
+Jinja2>=3.1.2          # шаблоны templates/ (зависимость Flask)
+itsdangerous>=2.1.2    # подписанные данные (зависимость Flask)
+click>=8.1.3           # CLI-часть Flask/Werkzeug
+blinker>=1.7.0         # сигналы Flask
+
+# ============================================================
+# СИСТЕМНЫЕ ПРОГРАММЫ (ставятся НЕ pip'ом, а через пакетный
+# менеджер ОС; install.sh делает это автоматически через apt):
+#   git, cmake, tmux, curl, build-essential (gcc/g++)
+# Вручную: sudo apt install -y git cmake tmux curl build-essential
+# ============================================================
+
+# ============================================================
+# ⚠️ НА САМОСТОЯТЕЛЬНУЮ УСТАНОВКУ ПОЛЬЗОВАТЕЛЕМ (НЕ в этом файле)
+# Бэкенды ускорения для компиляции llama.cpp — с чем будет работать модель:
+#
+# 1) CPU (по умолчанию) — ничего дополнительно не требуется,
+#    достаточно build-essential + cmake из списка выше.
+#
+# 2) NVIDIA CUDA — проприетарные пакеты NVIDIA ставятся отдельно:
+#      - драйвер:  sudo apt install -y nvidia-driver-550 (или новее)
+#      - toolkit:  https://developer.nvidia.com/cuda-downloads
+#        (в PATH должен появиться `nvcc` — install.sh сам добавит
+#         -DGGML_CUDA=ON при сборке, если найдет nvcc)
+#
+# 3) Vulkan — SDK/ICD от производителя GPU:
+#      - sudo apt install -y libvulkan-dev vulkan-tools
+#      - SDK: https://vulkan.lunarg.com (должен быть `glslc`)
+#        сборка: cmake -B build -DGGML_VULKAN=ON
+#
+# 4) ROCm (AMD GPU, опционально):
+#      - https://rocm.docs.amd.com (нужен hipcc)
+#        сборка: cmake -B build -DGGML_HIP=ON
+#
+# Если ни один GPU-бэкенд не установлен, llama.cpp соберется на CPU.
+# ============================================================
