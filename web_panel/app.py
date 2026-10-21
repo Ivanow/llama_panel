@@ -29,9 +29,10 @@ MANAGER_SH = os.path.join(BASE_DIR, "manager.sh")
 CACHE_FILE = os.path.join(BASE_DIR, "web_panel", "models_cache.json")
 
 # Кандидаты по умолчанию, если LLAMA_MODELS_DIRS не задан.
-# Папка из примеров (/stor001/models) тоже участвует — для совместимости со старой установкой.
+# Жёстких путей к конкретному диску нет: модели ищутся в ~/models и в папке
+# models/ рядом с репозиторием; любой другой диск/раздел пользователь указывает
+# сам через LLAMA_MODELS_DIRS (например LLAMA_MODELS_DIRS=/mnt/nas/gguf,/data/models).
 _DEFAULT_MODEL_ROOTS = [
-    "/stor001/models",
     os.path.expanduser("~/models"),
     os.path.join(BASE_DIR, "models"),   # models/ рядом с репозиторием
 ]
@@ -44,13 +45,19 @@ def build_model_roots():
     2) Если ничего не задано — берутся существующие кандидаты по умолчанию;
        если и они отсутствуют — отдаём первый кандидат как «ожидаемый» путь,
        чтобы панель могла подсказать пользователю, что именно создать/настроить.
+
+    Специальный корень "/" разрешает проводнику весь диск (навигация без ограничений).
     """
     env_roots = _env_list("LLAMA_MODELS_DIRS")
     legacy = os.environ.get("MODELS_DIR", "").strip()
     if not env_roots and legacy:
         env_roots = [legacy]
     if env_roots:
-        return [os.path.abspath(os.path.expanduser(p)) for p in env_roots]
+        roots = [os.path.abspath(os.path.expanduser(p)) for p in env_roots]
+        # "/" имеет наивысший приоритет: полный доступ к ФС по запросу пользователя
+        if any(r == "/" for r in roots):
+            return ["/"]
+        return roots
     candidates = [os.path.abspath(os.path.expanduser(p)) for p in _DEFAULT_MODEL_ROOTS]
     existing = [p for p in candidates if os.path.isdir(p)]
     return existing or [candidates[0]]
@@ -189,7 +196,10 @@ def get_roots():
     выйти за whitelist, поэтому путь остаётся в списке с флагом exists=False
     (UI подскажет, что папка пока не найдена). Если не существует ни один корень —
     добавляется стандартный candidate ~/models, чтобы проводник не был пустым.
+    Корень "/" означает полный доступ к файловой системе (см. build_model_roots).
     """
+    if MODEL_ROOTS == ["/"]:
+        return [{"path": "/", "exists": True}]
     roots = []
     for r in MODEL_ROOTS:
         try:
@@ -213,7 +223,10 @@ def is_under_roots(path):
         real = os.path.realpath(path)
     except Exception:
         return False
-    for root in _root_paths():
+    root_paths = _root_paths()
+    if root_paths == ["/"]:      # полный доступ к ФС — разрешено всё
+        return True
+    for root in root_paths:
         try:
             common = os.path.commonpath([root, real])
         except ValueError:
@@ -237,6 +250,7 @@ def browse_dir():
     lang = get_locale()
     rel = request.args.get('path', '') or ''
     roots = _root_paths()
+    full_access = roots == ["/"]      # "/" = разрешена вся файловая система
     if os.path.isabs(rel):
         target = os.path.abspath(rel)
     else:
@@ -250,11 +264,17 @@ def browse_dir():
     depth = 0
     inside_root = ""
     for root in roots:
-        if os.path.commonpath([root, target]) == root:
-            inside_root = root
-            rel_to_root = os.path.relpath(target, root)
-            depth = 0 if rel_to_root == '.' else rel_to_root.count(os.sep) + 1
+        try:
+            if os.path.commonpath([root, target]) == root:
+                inside_root = root
+        except ValueError:
+            continue
+        if full_access:
+            # корень "/": глубина не ограничена, вверх можно до самой /
             break
+        rel_to_root = os.path.relpath(target, root)
+        depth = 0 if rel_to_root == '.' else rel_to_root.count(os.sep) + 1
+        break
     truncated = False
     folders, files = [], []
     try:
@@ -269,7 +289,7 @@ def browse_dir():
     for entry in entries:
         try:
             if entry.is_dir(follow_symlinks=False) or (entry.is_symlink() and os.path.isdir(entry.path)):
-                if depth + 1 > MAX_BROWSE_DEPTH:
+                if not full_access and depth + 1 > MAX_BROWSE_DEPTH:
                     continue
                 folders.append({"name": entry.name, "path": os.path.join(target, entry.name)})
             elif entry.name.lower().endswith('.gguf') and entry.is_file(follow_symlinks=True):
@@ -289,8 +309,12 @@ def browse_dir():
             continue
 
     parent = os.path.dirname(target)
-    # «вверх» разрешено, пока родитель остаётся внутри того же корня whitelist
-    can_go_up = bool(inside_root) and is_under_roots(parent) and os.path.commonpath([inside_root, parent]) == inside_root
+    # «вверх»: при корне "/" — до самой /.; иначе — пока родитель внутри того же корня whitelist
+    if full_access:
+        can_go_up = target != "/"      # на самой / родителем является она сама — стоп
+        parent = parent if can_go_up else ""
+    else:
+        can_go_up = bool(inside_root) and parent != inside_root and is_under_roots(parent)
     return jsonify({
         "cwd": target,
         "root": inside_root,
