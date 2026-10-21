@@ -79,7 +79,7 @@ A web panel for convenient management of local LLM servers based on `llama.cpp`.
 
 ### Viewing Models
 
-The panel automatically scans the `/stor001/models` directory for `.gguf` files. You can refresh the model list using the "Refresh" button in the "Models" section.
+The panel scans your model folders for `.gguf` files. By default these are `~/models` and `models/` next to the repository; set your own folders or drives via the `LLAMA_MODELS_DIRS` environment variable (comma-separated, e.g. `LLAMA_MODELS_DIRS=/mnt/nas/gguf,/data/models`; the value `/` allows browsing the entire filesystem). The built-in file explorer can navigate into subfolders of the selected directory. Refresh the list with the "Refresh" button in the "Models" section.
 
 ## 🛠️ Manual Installation (For Advanced Users)
 
