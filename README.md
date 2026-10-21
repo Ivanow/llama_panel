@@ -1,3 +1,9 @@
+<div align="center">
+
+🇷🇺 **Русский** | [🇬🇧 English](README_EN.md)
+
+</div>
+
 # 🦙 LlamaPanel (LLM Server Manager)
 
 **Автор:** Kayro  
