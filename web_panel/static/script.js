@@ -56,6 +56,22 @@ function setLanguage(code) {
     location.reload();
 }
 
+// Перевод сырых системных сообщений (tmux и пр.), если они попадают в интерфейс
+const RAW_MSG_KEYS = [
+    [/СТАТУС:/g, null],            // префикс manager.sh — убираем (метка статуса уже локализована)
+    [/STATUS:/g, null],
+    [/session not found/i, 'status_detail_session_not_found'],
+    [/no sessions/i, 'status_detail_session_not_found'],
+    [/can't attach[^.]*/i, 'err_tmux_attach'],
+];
+function trRaw(s) {
+    if (!s) return s;
+    for (const [re, key] of RAW_MSG_KEYS) {
+        if (re.test(s)) s = s.replace(re, key === null ? '' : t(key));
+    }
+    return s;
+}
+
 /* ==================== МЕНЮ ШЕСТЕРЁНКИ ==================== */
 function toggleSettingsMenu(ev) {
     ev.stopPropagation();
@@ -155,15 +171,15 @@ async function updateAllStatuses() {
                 dot.className = 'status-dot online'; title.className = 'card-title title-online';
                 card.classList.remove('disabled');
                 btnStart.disabled = true; btnStop.disabled = false; btnRestart.disabled = false;
-                statusText.innerText = statusStr;
+                statusText.innerText = trRaw(statusStr);
             } else if (statusStr.includes('LOADING')) {
                 dot.className = 'status-dot loading'; title.className = 'card-title title-loading';
                 btnStart.disabled = true; btnStop.disabled = true; btnRestart.disabled = true;
-                statusText.innerText = statusStr;
+                statusText.innerText = trRaw(statusStr);
             } else {
                 dot.className = 'status-dot offline'; title.className = 'card-title title-offline';
                 btnStop.disabled = true; btnRestart.disabled = true;
-                if (statusText.innerText === t('checking')) statusText.innerText = statusStr;
+                if (statusText.innerText === t('checking')) statusText.innerText = trRaw(statusStr);
             }
         } catch(e) { console.error(e); }
     }
@@ -221,7 +237,7 @@ async function deleteInstance(name) {
         if (res.ok) {
             loadInstances();
         } else {
-            alert('⛔ ' + data.error);
+            alert('⛔ ' + trRaw(data.error));
         }
     } catch (e) { alert(t('network_error') + ': ' + e); }
 }
@@ -298,7 +314,7 @@ async function saveInstance(event) {
             closeModal();
             loadInstances();
         } else {
-            alert('❌ ' + t('error_prefix') + ': ' + result.error);
+            alert('❌ ' + t('error_prefix') + ': ' + trRaw(result.error));
         }
     } catch (e) { alert(t('network_error') + ': ' + e); }
     finally { submitBtn.innerText = originalText; submitBtn.disabled = false; }

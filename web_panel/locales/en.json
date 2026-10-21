@@ -122,5 +122,14 @@
   "reason_port_busy": "Port {port} is busy with another server",
   "reason_no_vram": "Not enough VRAM (need ~{need} MB, free {free} MB)",
   "reason_no_ram": "Not enough RAM (need ~{need} MB, free {free} MB)",
-  "guide_html": "<h2>📘 User Guide</h2><p>Welcome to <b>LlamaPanel</b> — a web panel for managing local LLM servers based on llama.cpp.</p><h3>1. Adding a server</h3><p>Click <b>\"Add server\"</b>, set the config name, port and the path to the <code>.gguf</code> model (convenient to pick via <b>\"Browse\"</b>). Choose the run mode and, if needed, configure launch arguments with the <b>\"Configure\"</b> button.</p><h3>2. Refreshing the model list</h3><p>The <b>\"Refresh models\"</b> button scans the models folder on the server. Run it after adding new <code>.gguf</code> files.</p><h3>3. Controls</h3><p><b>Start / Stop / Restart</b> — control of the server's tmux session. Green dot — server running, yellow — model loading, red — stopped. Dimmed cards mean the server cannot start: the reason is shown on the card (busy port, insufficient VRAM/RAM, missing model file).</p><h3>4. Editing and deleting</h3><p>A config can be edited or deleted only when the server is stopped (pencil and trash buttons in the card corner).</p><h3>5. API</h3><p>Each server is available as an OpenAI-compatible API at <code>http://&lt;IP&gt;:&lt;port&gt;/v1</code>.</p><p><i>Full documentation — in README.md and the doc/ folder of the repository.</i></p>"
+  "status_running": "RUNNING",
+  "status_loading": "LOADING",
+  "status_stopped": "STOPPED",
+  "status_error": "ERROR",
+  "guide_html": "<h2>📘 User Guide</h2><p>Welcome to <b>LlamaPanel</b> — a web panel for managing local LLM servers based on llama.cpp.</p><h3>1. Adding a server</h3><p>Click <b>\"Add server\"</b>, set the config name, port and the path to the <code>.gguf</code> model (convenient to pick via <b>\"Browse\"</b>). Choose the run mode and, if needed, configure launch arguments with the <b>\"Configure\"</b> button.</p><h3>2. Refreshing the model list</h3><p>The <b>\"Refresh models\"</b> button scans the models folder on the server. Run it after adding new <code>.gguf</code> files.</p><h3>3. Controls</h3><p><b>Start / Stop / Restart</b> — control of the server's tmux session. Green dot — server running, yellow — model loading, red — stopped. Dimmed cards mean the server cannot start: the reason is shown on the card (busy port, insufficient VRAM/RAM, missing model file).</p><h3>4. Editing and deleting</h3><p>A config can be edited or deleted only when the server is stopped (pencil and trash buttons in the card corner).</p><h3>5. API</h3><p>Each server is available as an OpenAI-compatible API at <code>http://&lt;IP&gt;:&lt;port&gt;/v1</code>.</p><p><i>Full documentation — in README.md and the doc/ folder of the repository.</i></p>",
+  "status_detail_session_not_found": "session not found",
+  "status_detail_port_health": "port {port}, /health OK",
+  "status_detail_port_loading": "port {port} is listening, but the model is not ready yet",
+  "status_detail_port_down": "session exists, but port {port} is not listening",
+  "err_tmux_attach": "can't attach to session"
 }
