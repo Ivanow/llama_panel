@@ -42,7 +42,9 @@ def build_model_roots():
 
     1) Явные настройки всегда имеют приоритет (даже если пока не существуют):
        LLAMA_MODELS_DIRS (список через ',' или ':'), затем исторический MODELS_DIR.
-    2) Если ничего не задано — берутся существующие кандидаты по умолчанию;
+    2) Если ничего не задано — берутся существующие кандидаты: стандартные
+       ~/models и <репозиторий>/models, плюс папки моделей из конфигов
+       instances/*.conf (модели могут лежать на любом диске/разделе);
        если и они отсутствуют — отдаём первый кандидат как «ожидаемый» путь,
        чтобы панель могла подсказать пользователю, что именно создать/настроить.
 
@@ -59,6 +61,16 @@ def build_model_roots():
             return ["/"]
         return roots
     candidates = [os.path.abspath(os.path.expanduser(p)) for p in _DEFAULT_MODEL_ROOTS]
+    # реальные места моделей из конфигов — любой диск/раздел, который указал пользователь
+    try:
+        for conf in glob.glob(os.path.join(INSTANCES_DIR, "*.conf")):
+            _, _, _, model_path, _ = parse_conf(conf)
+            d = os.path.dirname(model_path) if model_path else ""
+            d = os.path.abspath(os.path.expanduser(d)) if d else ""
+            if d and d not in candidates:
+                candidates.append(d)
+    except Exception as e:
+        logging.error(f"Ошибка чтения конфигов для корней проводника: {e}")
     existing = [p for p in candidates if os.path.isdir(p)]
     return existing or [candidates[0]]
 
@@ -189,25 +201,28 @@ MAX_BROWSE_DEPTH = 8      # глубина от корня whitelist
 MAX_FILES_PER_DIR = 500   # максимум .gguf-файлов на одну директорию
 
 def get_roots():
-    """Список корневых папок whitelist для проводника.
+    """Список корневых папок проводника моделей.
 
     В отличие от старой версии, НЕ молча выбрасывает отсутствующие директории:
     пользователь явно настроил корень через LLAMA_MODELS_DIRS — он и так не сможет
     выйти за whitelist, поэтому путь остаётся в списке с флагом exists=False
     (UI подскажет, что папка пока не найдена). Если не существует ни один корень —
-    добавляется стандартный candidate ~/models, чтобы проводник не был пустым.
+    добавляется стандартный кандидат ~/models, чтобы проводник не был пустым.
     Корень "/" означает полный доступ к файловой системе (см. build_model_roots).
+
+    ВАЖНО: пути отдаются как os.path.abspath (без realpath), иначе на системах,
+    где /stor — это смонтированный раздел (/data/stor), UI получал «разрешённый»
+    путь /data/stor/... вместо привычного /stor/..., а навигация вверх ломалась.
+    Проверка whitelist (is_under_roots) — по нормализованным путям, симлинки
+    наружу из корня отсекаются отдельно (_is_external_symlink).
     """
     if MODEL_ROOTS == ["/"]:
         return [{"path": "/", "exists": True}]
     roots = []
     for r in MODEL_ROOTS:
-        try:
-            real = os.path.realpath(r)
-        except Exception:
-            continue
-        if real not in [x["path"] for x in roots]:
-            roots.append({"path": real, "exists": os.path.isdir(real)})
+        p = os.path.normpath(r)
+        if p not in [x["path"] for x in roots]:
+            roots.append({"path": p, "exists": os.path.isdir(p)})
     if not any(x["exists"] for x in roots):
         home_models = os.path.abspath(os.path.expanduser("~/models"))
         if home_models not in [x["path"] for x in roots]:
@@ -218,9 +233,17 @@ def _root_paths():
     return [x["path"] for x in get_roots()]
 
 def is_under_roots(path):
-    """Проверка, что path находится внутри одного из корней whitelist (без выхода '..')."""
+    """Проверка, что path находится внутри одного из разрешённых корней.
+
+    Сравнение идёт по нормализованным путям (abspath), а не realpath: иначе на
+    системах, где папка моделей лежит на смонтированном разделе (symlink /stor ->
+    /data/stor или mount-bind), весь whitelist «испарялся» и проводник отдавал 403.
+    Защита от выхода за пределы корня сохраняется: '..' схлопывается normpath'ом,
+    поэтому /root/../etc не пройдёт проверку. Симлинки наружу из корня отсекаются
+    отдельно при выдаче файлов (проверка realpath для самих .gguf).
+    """
     try:
-        real = os.path.realpath(path)
+        norm = os.path.normpath(os.path.abspath(path))
     except Exception:
         return False
     root_paths = _root_paths()
@@ -228,12 +251,31 @@ def is_under_roots(path):
         return True
     for root in root_paths:
         try:
-            common = os.path.commonpath([root, real])
+            common = os.path.commonpath([root, norm])
         except ValueError:
             common = None
         if common == root:
             return True
     return False
+
+def _is_external_symlink(filepath):
+    """True, если файл является симлинком, ведущим за пределы разрешённых корней."""
+    try:
+        if not os.path.islink(filepath):
+            return False
+        real = os.path.realpath(filepath)
+        root_paths = _root_paths()
+        if root_paths == ["/"]:
+            return False
+        for root in root_paths:
+            try:
+                if os.path.commonpath([root, real]) == root:
+                    return False
+            except ValueError:
+                continue
+        return True
+    except Exception:
+        return False
 
 def human_size(nbytes):
     gb = nbytes / (1024 ** 3)
@@ -275,8 +317,21 @@ def browse_dir():
         rel_to_root = os.path.relpath(target, root)
         depth = 0 if rel_to_root == '.' else rel_to_root.count(os.sep) + 1
         break
+    if not inside_root and not full_access:
+        # путь симлинком уходит из разрешённой папки (например /stor/models ->
+        # /data/stor/models): остаёмся «внутри» корня по логическому пути, но
+        # дальше пускаем только симлинки наружу — см. _is_external_symlink ниже
+        real_target = os.path.realpath(target)
+        for root in roots:
+            try:
+                if os.path.commonpath([os.path.realpath(root), real_target]) == os.path.realpath(root):
+                    inside_root = root
+                    break
+            except ValueError:
+                continue
     truncated = False
     folders, files = [], []
+    allow_escape_links = bool(inside_root)   # whitelist-корень через симлинк/маунт
     try:
         with os.scandir(target) as it:
             entries = sorted(it, key=lambda e: e.name.lower())
@@ -297,7 +352,7 @@ def browse_dir():
                     truncated = True
                     continue
                 full = os.path.join(target, entry.name)
-                if not is_under_roots(full):   # симлинк наружу из whitelist — пропускаем
+                if _is_external_symlink(full):   # симлинк наружу из разрешённых папок — пропускаем
                     continue
                 files.append({
                     "name": entry.name,
@@ -309,12 +364,29 @@ def browse_dir():
             continue
 
     parent = os.path.dirname(target)
-    # «вверх»: при корне "/" — до самой /.; иначе — пока родитель внутри того же корня whitelist
+    # «вверх»: при корне "/" — до самой /.; иначе — пока родитель не выше корня whitelist.
     if full_access:
         can_go_up = target != "/"      # на самой / родителем является она сама — стоп
         parent = parent if can_go_up else ""
     else:
-        can_go_up = bool(inside_root) and parent != inside_root and is_under_roots(parent)
+        # Сравнение — нормализованными СТРОКАМИ (без realpath): на системах, где
+        # папка моделей лежит на смонтированном разделе или за симлинком
+        # (/stor -> /data/stor), realpath родителя («/data/stor/models») не
+        # совпадает с логическим корнем whitelist («/stor/models»), из-за чего
+        # кнопка «вверх» исчезала уже в самом корне и выйти было некуда.
+        # Безопасность не снижается: parent остаётся строго внутри корня
+        # whitelist (выше корня — stop); наружу всё равно не выпускает
+        # is_under_roots() при следующем запросе.
+        def _norm(p):
+            return os.path.normpath(os.path.abspath(p)).rstrip('/') or '/'
+        n_target = _norm(target)
+        n_root = _norm(inside_root)
+        n_parent = _norm(parent)
+        # «вверх» можно, пока текущая папка глубже корня whitelist;
+        # на самом корне (n_target == n_root) — стоп (at_root=True).
+        can_go_up = bool(inside_root) and n_target != n_root and \
+                    (n_root == '/' or n_target.startswith(n_root + '/'))
+        parent = n_parent if can_go_up else ""
     return jsonify({
         "cwd": target,
         "root": inside_root,
