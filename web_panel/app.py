@@ -236,14 +236,64 @@ def get_instances():
         
     return jsonify(instances)
 
+# --- Локализация строк статуса из manager.sh («⚪ СТАТУС: STOPPED (сессия не найдена)») ---
+STATUS_KIND_KEYS = {  # token in manager.sh output -> locale key of the label
+    "RUNNING": "status_running",
+    "LOADING": "status_loading",
+    "STOPPED": "status_stopped",
+    "ERROR":   "status_error",
+}
+STATUS_DETAIL_KEYS = [  # fragment of manager.sh status output -> (locale key, position of port in it)
+    ("сессия не найдена",     "status_detail_session_not_found", None),
+    ("no server running",     "status_detail_session_not_found", None),
+    ("session not found",     "status_detail_session_not_found", None),
+    ("/health ok",            "status_detail_port_health",       1),
+    ("модель еще не готова",  "status_detail_port_loading",      1),
+    ("модель ещё не готова",  "status_detail_port_loading",      1),
+    ("model is not ready",    "status_detail_port_loading",      2),
+    ("не слушается",         "status_detail_port_down",         5),
+    ("is not listening",      "status_detail_port_down",         4),
+]
+ICON_BY_KIND = {"running": "🟢 ", "loading": "🟡 ", "stopped": "⚪ ", "error": "🔴 "}
+
+def localize_status(raw, name, lang):
+    """Возвращает локализованную строку статуса вида «🟢 РАБОТАЕТ (порт 8081, /health OK)».
+    Понимает и русские, и английские выходные данные manager.sh; порт всегда берётся из конфига."""
+    raw = (raw or "").strip()
+    kind = next((k for k in STATUS_KIND_KEYS if re.search(k, raw)), None)
+    if not kind:
+        return raw
+    low = raw.lower()
+    detail_key, port_idx = None, None
+    for frag, key, idx in STATUS_DETAIL_KEYS:
+        if frag in low:
+            detail_key, port_idx = key, idx
+            break
+    port = "?"
+    conf_path = os.path.join(INSTANCES_DIR, f"{name}.conf")
+    if os.path.exists(conf_path):
+        p, _, _, _, _ = parse_conf(conf_path)
+        port = p
+    label = tr(STATUS_KIND_KEYS[kind], lang)
+    detail = ""
+    if detail_key:
+        detail = tr(detail_key, lang, port=port)
+        if port_idx is None:  # русские фразы manager.sh без подстановки порта — добавим порт сами
+            m = re.search(r'(\d{4,5})', raw)
+            if m and 'порт' in detail:
+                detail = detail.replace('порт', f"порт {m.group(1)}", 1)
+    icon = ICON_BY_KIND.get(kind.lower(), "")
+    return f"{icon}{label} ({detail})" if detail else f"{icon}{label}"
+
 @app.route('/api/status/<name>', methods=['GET'])
 def get_status(name):
     if not is_valid_name(name): return err("err_invalid_name")
+    lang = get_locale()
     try:
         result = subprocess.run([MANAGER_SH, name, "status"], capture_output=True, text=True, timeout=5)
-        return jsonify({"status": result.stdout.strip()})
+        return jsonify({"status": localize_status(result.stdout.strip(), name, lang)})
     except Exception as e:
-        return jsonify({"status": "🔴 ERROR"})
+        return jsonify({"status": localize_status("ERROR session not found", name, lang)})
 
 @app.route('/api/action/<name>/<action>', methods=['POST'])
 def control_instance(name, action):
