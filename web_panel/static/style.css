@@ -94,6 +94,48 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
     backdrop-filter: blur(8px); z-index: 2000; padding: 20px;
 }
 .modal-overlay.active { display: flex; align-items: center; justify-content: center; }
+
+/* === Кнопка-шестеренка и меню настроек === */
+.settings-wrap { position: relative; }
+.icon-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+    width: 40px; height: 40px; padding: 8px; border-radius: 8px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s;
+}
+.icon-btn:hover { color: var(--accent); border-color: var(--accent); }
+.icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.settings-menu {
+    display: none; position: absolute; top: 46px; right: 0; z-index: 3000;
+    min-width: 230px; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.5); overflow: hidden;
+}
+.settings-menu.open { display: block; }
+.settings-item {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer;
+    color: var(--text-main); font-size: 14px; transition: background 0.15s;
+}
+.settings-item:hover { background: var(--bg-hover); }
+.settings-item svg { width: 17px; height: 17px; fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.settings-item-label { flex: 1; }
+.settings-item-value { color: var(--text-muted); font-size: 12px; }
+.lang-list { display: none; max-height: 220px; overflow-y: auto; background: var(--bg-body); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.lang-list.open { display: block; }
+.lang-option {
+    display: flex; align-items: center; gap: 8px; padding: 9px 14px 9px 26px;
+    font-size: 13px; color: var(--text-main); cursor: pointer; transition: background 0.15s;
+}
+.lang-option:hover { background: var(--bg-hover); }
+.lang-option.active { color: var(--accent); font-weight: 600; }
+.lang-check { width: 14px; text-align: center; color: var(--accent); }
+
+/* === Модальное окно руководства (затеняет весь интерфейс) === */
+.guide-content { max-width: 760px; max-height: 85vh; overflow-y: auto; }
+.guide-body { color: var(--text-main); font-size: 14px; line-height: 1.7; }
+.guide-body h2 { color: var(--accent); margin: 0 0 15px 0; font-size: 22px; }
+.guide-body h3 { color: var(--text-main); margin: 22px 0 8px 0; font-size: 16px; border-left: 3px solid var(--accent); padding-left: 10px; }
+.guide-body p { margin: 8px 0; color: var(--text-muted); }
+.guide-body b { color: var(--text-main); }
+.guide-body code { background: var(--bg-body); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-family: monospace; font-size: 12px; color: var(--accent); }
 .modal-overlay .modal-content {
     max-width: 600px; padding: 20px; background: rgba(20, 30, 45, 0.98);
 }
