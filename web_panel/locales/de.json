@@ -137,6 +137,7 @@
   "err_path_denied": "Keine Berechtigung, diesen Ordner zu lesen",
   "explorer_loading": "Wird geladen…",
   "explorer_no_roots": "Keine erlaubten Modellordner konfiguriert. LLAMA_MODELS_DIRS beim Start der Panel festlegen.",
+  "explorer_root_missing": "Ordner nicht gefunden",
   "explorer_roots_title": "Stammordner",
   "explorer_truncated": "Zu viele Dateien in diesem Ordner – nicht alle werden angezeigt"
 }

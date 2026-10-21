@@ -137,6 +137,7 @@
   "err_path_denied": "Нет прав на чтение этой папки",
   "explorer_loading": "Загрузка…",
   "explorer_no_roots": "Разрешённые папки с моделями не настроены. Укажите LLAMA_MODELS_DIRS при запуске панели.",
+  "explorer_root_missing": "папка не найдена",
   "explorer_roots_title": "Корневая папка",
   "explorer_truncated": "Слишком много файлов в папке — показаны не все"
 }

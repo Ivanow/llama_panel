@@ -137,6 +137,7 @@
   "err_path_denied": "Bu klasörü okuma izni yok",
   "explorer_loading": "Yükleniyor...",
   "explorer_no_roots": "İzinli model klasörleri yapılandırılmamış. Paneli başlatırken LLAMA_MODELS_DIRS ayarlayın.",
+  "explorer_root_missing": "klasör bulunamadı",
   "explorer_roots_title": "Kök klasör",
   "explorer_truncated": "Bu klasörde çok fazla dosya var — hepsi gösterilmiyor"
 }
