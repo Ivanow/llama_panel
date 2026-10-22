@@ -214,7 +214,6 @@ async function refreshModels() {
     try {
         const res = await fetch('/api/models/refresh', { method: 'POST' });
         if (res.ok) {
-            allModels = []; // Сбрасываем локальный кэш
             alert(t('alert_models_updated'));
         } else {
             const data = await res.json().catch(() => ({}));
@@ -480,7 +479,6 @@ function buildArgs() {
     document.getElementById('new-args').value = args.join(" ");
 }
 
-let allModels = [];
 
 // Предупреждение о Draft переводится из языкового пакета
 function updateDraftWarning() {
