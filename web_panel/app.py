@@ -37,25 +37,52 @@ _DEFAULT_MODEL_ROOTS = [
     os.path.join(BASE_DIR, "models"),   # models/ рядом с репозиторием
 ]
 
+# --- Пользовательский конфиг config.json в корне проекта (см. config.example.json) ---
+CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+
+def read_config():
+    """Читает config.json (если есть). Ошибки не фатальны — возвращаем {}."""
+    try:
+        if os.path.isfile(CONFIG_FILE):
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return data
+    except Exception as e:
+        logging.error(f"Ошибка чтения {CONFIG_FILE}: {e}")
+    return {}
+
+CFG = read_config()
+
 def build_model_roots():
     """Whitelist корневых папок проводника моделей.
 
-    1) Явные настройки всегда имеют приоритет (даже если пока не существуют):
-       LLAMA_MODELS_DIRS (список через ',' или ':'), затем исторический MODELS_DIR.
-    2) Если ничего не задано — берутся существующие кандидаты: стандартные
-       ~/models и <репозиторий>/models, плюс папки моделей из конфигов
-       instances/*.conf (модели могут лежать на любом диске/разделе);
-       если и они отсутствуют — отдаём первый кандидат как «ожидаемый» путь,
-       чтобы панель могла подсказать пользователю, что именно создать/настроить.
+    Приоритет источников:
+    1) config.json в корне проекта: {"models_dir": "/mnt/nas/gguf"} или список.
+       Значение "/" даёт полный доступ ко всей файловой системе.
+    2) Переменные окружения LLAMA_MODELS_DIRS (через ',' или ':'), затем
+       исторический MODELS_DIR — перекрывают config.json.
+    3) Ничего не задано — существующие кандидаты: ~/models, <репозиторий>/models
+       и папки моделей из instances/*.conf (модели могут лежать на любом
+       диске/разделе); если и их нет — первый кандидат как «ожидаемый» путь.
 
     Специальный корень "/" разрешает проводнику весь диск (навигация без ограничений).
     """
+    cfg_roots = []
+    cfg_val = CFG.get("models_dir", "")
+    if isinstance(cfg_val, list):
+        cfg_roots = [str(p).strip() for p in cfg_val if str(p).strip()]
+    elif isinstance(cfg_val, str) and cfg_val.strip():
+        cfg_roots = [p.strip() for p in re.split(r'[,:]', cfg_val) if p.strip()]
+
     env_roots = _env_list("LLAMA_MODELS_DIRS")
     legacy = os.environ.get("MODELS_DIR", "").strip()
     if not env_roots and legacy:
         env_roots = [legacy]
-    if env_roots:
-        roots = [os.path.abspath(os.path.expanduser(p)) for p in env_roots]
+    # config.json подхватывается, если переменные окружения не заданы
+    configured = env_roots or cfg_roots
+    if configured:
+        roots = [os.path.abspath(os.path.expanduser(p)) for p in configured]
         # "/" имеет наивысший приоритет: полный доступ к ФС по запросу пользователя
         if any(r == "/" for r in roots):
             return ["/"]
@@ -363,10 +390,11 @@ def browse_dir():
         except Exception:
             continue
 
-    parent = os.path.dirname(target)
-    # «вверх»: при корне "/" — до самой /.; иначе — пока родитель не выше корня whitelist.
+    # «вверх»: при корне "/" — вплоть до самой /. (dirname("/") == "/", поэтому
+    # для корня родителя нет — stop); иначе — пока родитель не выше корня whitelist.
+    parent = os.path.dirname(target) if target != "/" else ""
     if full_access:
-        can_go_up = target != "/"      # на самой / родителем является она сама — стоп
+        can_go_up = bool(parent)       # на самой / родителем является она сама — стоп
         parent = parent if can_go_up else ""
     else:
         # Сравнение — нормализованными СТРОКАМИ (без realpath): на системах, где
@@ -501,7 +529,10 @@ def get_instances():
 
         instances.append({
             "name": data["name"], "port": data["port"], "model": data["model"], "args": data["args"],
-            "can_start": can_start, "reason": reason, "is_running": data["is_running"]
+            "can_start": can_start, "reason": reason, "is_running": data["is_running"],
+            # полный путь модели — чтобы фронтенду при редактировании не нужно было
+            # дёргать /api/models (полный os.walk по всем корням = фриз на больших библиотеках)
+            "model_path": data["model_path"],
         })
         
     return jsonify(instances)
@@ -667,6 +698,11 @@ def refresh_models():
     return jsonify({"status": "OK", "roots": get_roots()})
 
 if __name__ == '__main__':
+    # Приглушаем HTTP-спам werkzeug (каждый клик/опрос статуса давал строку в консоли).
+    # Сами логи приложения идут в файл panel_error.log (см. logging.basicConfig выше),
+    # а не в консоль — консоль остаётся чистой.
+    import logging as _logging
+    _logging.getLogger('werkzeug').setLevel(_logging.ERROR)
     try:
         print("======================================")
         print("🚀 Панель управления LlamaPanel запущена!")
