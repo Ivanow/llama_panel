@@ -259,11 +259,10 @@ async function editInstance(name) {
         document.getElementById('new-port').value = inst.port;
         document.getElementById('new-args').value = inst.args;
 
-        const modelRes = await fetch('/api/models');
-        const models = await modelRes.json();
-        const modelObj = models.find(m => m.name === inst.model);
-        if (modelObj) document.getElementById('new-model').value = modelObj.path;
-        else document.getElementById('new-model').value = inst.model;
+        // Путь модели берём напрямую из /api/instances (поле model_path).
+        // Раньше здесь дёргался /api/models с полным os.walk по всем корням —
+        // на библиотеках из тысяч файлов это вешало браузер на минуту.
+        document.getElementById('new-model').value = inst.model_path || inst.model;
 
         document.getElementById('addModal').classList.add('active');
         onModeChange();
