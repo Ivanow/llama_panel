@@ -87,7 +87,8 @@ def build_model_roots():
         if any(r == "/" for r in roots):
             return ["/"]
         return roots
-    candidates = [os.path.abspath(os.path.expanduser(p)) for p in _DEFAULT_MODEL_ROOTS]
+    # По умолчанию даем доступ ко всей файловой системе, чтобы не запирать пользователя
+    candidates = ["/"]
     # реальные места моделей из конфигов — любой диск/раздел, который указал пользователь
     try:
         for conf in glob.glob(os.path.join(INSTANCES_DIR, "*.conf")):
@@ -99,7 +100,7 @@ def build_model_roots():
     except Exception as e:
         logging.error(f"Ошибка чтения конфигов для корней проводника: {e}")
     existing = [p for p in candidates if os.path.isdir(p)]
-    return existing or [candidates[0]]
+    return existing or ["/"]
 
 MODEL_ROOTS = build_model_roots()
 
