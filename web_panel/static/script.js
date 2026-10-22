@@ -205,28 +205,6 @@ async function doAction(name, action, btn) {
     }
 }
 
-async function refreshModels() {
-    const btn = document.getElementById('btn-refresh-models');
-    const originalHTML = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = t('alert_scan');
-
-    try {
-        const res = await fetch('/api/models/refresh', { method: 'POST' });
-        if (res.ok) {
-            alert(t('alert_models_updated'));
-        } else {
-            const data = await res.json().catch(() => ({}));
-            alert(data.error || t('alert_scan_failed'));
-        }
-    } catch (e) {
-        alert(t('network_error') + ': ' + e);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
-        applyStaticTranslations();
-    }
-}
 
 async function deleteInstance(name) {
     if (!confirm(t('confirm_delete', { name: name }))) return;
@@ -350,8 +328,18 @@ async function openExplorer(target) {
             list.innerHTML = '<div style="padding:20px; text-align:center; color:#888;">' + t('explorer_no_roots') + '</div>';
             return;
         }
-        const first = browseRoots.find(x => x.exists) || browseRoots[0];
-        await loadFolder(first.path);
+        // Пытаемся вспомнить последнюю папку
+        const lastPath = localStorage.getItem('last_browse_path');
+        const defaultRoot = browseRoots.find(x => x.exists) || browseRoots[0];
+        
+        if (lastPath) {
+            await loadFolder(lastPath).catch(async () => {
+                // Если папка удалена или недоступна — открываем корень
+                await loadFolder(defaultRoot.path);
+            });
+        } else {
+            await loadFolder(defaultRoot.path);
+        }
     } catch (e) {
         list.innerHTML = '<div style="padding:20px; color:red;">' + (e.message || t('err_generic')) + '</div>';
     }
@@ -363,6 +351,7 @@ async function loadFolder(path) {
     try {
         browseData = await fetchBrowse(path);
         browseCwd = browseData.cwd;
+        localStorage.setItem('last_browse_path', browseCwd); // Запоминаем
         renderExplorer();
     } catch (e) {
         list.innerHTML = '<div style="padding:20px; color:red;">' + (e.message || t('err_generic')) + '</div>';
