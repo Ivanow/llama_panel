@@ -68,7 +68,6 @@ case "$ACTION" in
     echo "🚀 Запускаю $INSTANCE на порту $PORT..."
     
     # Запуск с передачей аргументов
-    export LD_LIBRARY_PATH="/usr/local/cuda-12.6/lib64:$LD_LIBRARY_PATH"
     tmux new-session -d -s "$SESSION" \
       "source ~/.bashrc 2>/dev/null; $BIN --model $MODEL --port $PORT --host 0.0.0.0 --alias $ALIAS $EXTRA_ARGS 2>&1 | tee $LOG"
     
