@@ -82,6 +82,8 @@ Execute the same commands as for the server (see Option 1).
 
 After launching, the panel will become available in your browser at `http://localhost:8090` (or `http://<SERVER-IP>:8090` if running on a remote machine). On first login, the panel will ask for the path to the `.gguf` models directory and the `llama-server` file if it cannot find it automatically. Or, if you have multiple llama instances, specify the path to the required one.
 
+💡 **Custom Port:** By default, the panel runs on port `8090`. If it's busy or you want to use a different one, pass the `--port` argument on startup: `./run.sh --port 8080` (or `python3 web_panel/app.py --port 8080`).
+
 
 ## 📖 Usage
 

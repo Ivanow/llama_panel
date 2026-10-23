@@ -104,7 +104,7 @@ exit_with_pause() {
 
 run_app() {
     echo "$MSG_CHECK_FAST"
-    "$PYTHON_BIN" web_panel/app.py
+    "$PYTHON_BIN" web_panel/app.py "$@"
     exit_with_pause "$MSG_STOPPED"
 }
 

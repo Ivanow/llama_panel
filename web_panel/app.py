@@ -6,7 +6,9 @@ import logging
 import json
 import shlex
 import shutil
-from flask import Flask, jsonify, render_template, request, make_response
+import argparse
+from functools import lru_cache
+from flask import Flask, jsonify, render_template, request, make_response, send_from_directory
 
 app = Flask(__name__)
 app.config['TEMPLATES_AUTO_RELOAD'] = True
@@ -17,9 +19,17 @@ BASE_DIR = os.path.abspath(os.path.dirname(WEB_PANEL_DIR))
 INSTANCES_DIR = os.path.join(BASE_DIR, "instances")
 MANAGER_SH = os.path.join(BASE_DIR, "manager.sh")
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+LOCALES_DIR = os.path.join(WEB_PANEL_DIR, "locales")
+DEFAULT_LOCALE = "ru"
 
 LOG_FILE = os.path.join(WEB_PANEL_DIR, "panel_error.log")
 logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+LOCALE_NAMES = {
+    "ru": "Русский", "en": "English", "tr": "Türkçe", 
+    "zh_CN": "中文(简体)", "de": "Deutsch", "fr": "Français", 
+    "es": "Español", "uk": "Українська", "kk": "Қазақша"
+}
 
 # --- Конфигурация и Поиск бинарника ---
 def load_config():
@@ -32,24 +42,18 @@ def load_config():
     return None
 
 def find_llama_server():
-    # 1. Проверяем стандартные места и соседние папки
     candidates = [
-        os.path.join(BASE_DIR, "build", "bin", "llama-server"),             # В папке проекта
-        os.path.join(BASE_DIR, "..", "llama_server", "build", "bin", "llama-server"), # В соседней папке llama_server
-        os.path.expanduser("~/llama.cpp/build/bin/llama-server"),           # Домашняя папка llama.cpp
-        "/usr/local/bin/llama-server",                                      # Системная установка
+        os.path.join(BASE_DIR, "build", "bin", "llama-server"),
+        os.path.join(BASE_DIR, "..", "llama_server", "build", "bin", "llama-server"),
+        os.path.expanduser("~/llama.cpp/build/bin/llama-server"),
+        "/usr/local/bin/llama-server",
         "/usr/bin/llama-server"
     ]
-    
     for p in candidates:
         if os.path.exists(p) and os.path.isfile(p):
             return os.path.abspath(p)
             
-    # 2. Ищем в системе (PATH)
-    sys_bin = shutil.which("llama-server")
-    if sys_bin:
-        return sys_bin
-    return ""
+    return shutil.which("llama-server") or ""
 
 def get_model_roots():
     cfg = load_config()
@@ -59,10 +63,17 @@ def get_model_roots():
         if isinstance(md, list): return md
     return ["/"]
 
-# --- Локализация ---
-LOCALES_DIR = os.path.join(WEB_PANEL_DIR, "locales")
-DEFAULT_LOCALE = "ru"
-LOCALE_NAMES = {"ru": "Русский", "en": "English", "tr": "Türkçe", "zh_CN": "中文(简体)", "de": "Deutsch", "fr": "Français", "es": "Español", "uk": "Українська", "kk": "Қазақша"}
+# --- Локализация с кэшированием ---
+@lru_cache(maxsize=16)
+def load_locale(lang):
+    path = os.path.join(LOCALES_DIR, f"{lang}.json")
+    if os.path.exists(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            logging.error(f"Ошибка загрузки локали {lang}: {e}")
+    return {}
 
 def available_locales():
     codes = [os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(LOCALES_DIR, "*.json"))]
@@ -74,19 +85,15 @@ def get_locale(req=None):
     lang = req.args.get('lang') or req.headers.get('X-Lang') or req.cookies.get('lang') or DEFAULT_LOCALE
     return lang if lang in available_locales() else DEFAULT_LOCALE
 
-def load_locale(lang):
-    try:
-        with open(os.path.join(LOCALES_DIR, f"{lang}.json"), 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except: return {}
-
 def tr(key, lang=None, **kwargs):
     lang = lang or get_locale()
-    pack = load_locale(lang) or load_locale(DEFAULT_LOCALE)
+    pack = load_locale(lang)
     base = load_locale(DEFAULT_LOCALE)
     template = pack.get(key) or base.get(key) or key
-    try: return template.format(**kwargs)
-    except: return template
+    try:
+        return template.format(**kwargs)
+    except Exception:
+        return template
 
 def err(msg_key, status=400, lang=None, **kwargs):
     return jsonify({"error": tr(msg_key, lang, **kwargs)}), status
@@ -98,9 +105,11 @@ def is_valid_name(name):
 def get_system_resources():
     free_vram, free_ram = 0, 0
     try:
-        res = subprocess.run(['nvidia-smi', '--query-gpu=memory.free', '--format=csv,nounits,noheader'], capture_output=True, text=True)
-        if res.returncode == 0: free_vram = int(res.stdout.strip())
-        with open('/proc/meminfo', 'r') as f:
+        res = subprocess.run(['nvidia-smi', '--query-gpu=memory.free', '--format=csv,nounits,noheader'], capture_output=True, text=True, timeout=2)
+        if res.returncode == 0 and res.stdout.strip():
+            free_vram = int(res.stdout.splitlines()[0].strip())
+        
+        with open('/proc/meminfo', 'r', encoding='utf-8') as f:
             for line in f:
                 if line.startswith('MemAvailable:'):
                     free_ram = int(line.split()[1]) // 1024
@@ -112,34 +121,50 @@ def get_system_resources():
 def parse_conf(conf_path):
     port, model, gpu_layers, model_path, extra_args = "?", "?", 0, "", ""
     try:
-        with open(conf_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'): continue
-                if '=' in line:
-                    key, val = line.split('=', 1)
-                    key, val = key.strip(), val.strip().strip('"').strip("'")
-                    if key == 'PORT': port = val
-                    elif key == 'MODEL':
-                        model = os.path.basename(val)
-                        model_path = val
-                    elif key == 'EXTRA_ARGS':
-                        extra_args = val
-                        match = re.search(r'--n-gpu-layers\s+(\d+)', val)
-                        if match: gpu_layers = int(match.group(1))
+        cmd = f'source "{conf_path}" 2>/dev/null; echo "$PORT"; echo "$MODEL"; echo "$EXTRA_ARGS"'
+        res = subprocess.run(['bash', '-c', cmd], capture_output=True, text=True, timeout=2)
+        if res.returncode == 0:
+            lines = res.stdout.strip().split('\n')
+            if len(lines) >= 3:
+                port = lines[0] or "?"
+                model_path = lines[1]
+                model = os.path.basename(model_path) if model_path else "?"
+                extra_args = lines[2]
+                match = re.search(r'--n-gpu-layers\s+(\d+)', extra_args)
+                if match:
+                    gpu_layers = int(match.group(1))
     except Exception as e:
         logging.error(f"Ошибка парсинга конфига {conf_path}: {e}")
     return port, model, gpu_layers, model_path, extra_args
 
 def is_session_running(name):
-    return subprocess.run(['tmux', 'has-session', '-t', f'llama-{name}'], capture_output=True).returncode == 0
+    try:
+        return subprocess.run(['tmux', 'has-session', '-t', f'llama-{name}'], capture_output=True, timeout=2).returncode == 0
+    except Exception:
+        return False
+
+# --- ОПТИМИЗАЦИЯ: Получение всех сессий за 1 системный вызов ---
+def get_active_sessions():
+    try:
+        res = subprocess.run(['tmux', 'list-sessions', '-F', '#{session_name}'], capture_output=True, text=True, timeout=2)
+        if res.returncode == 0:
+            return set(line.strip() for line in res.stdout.splitlines() if line.strip())
+    except Exception:
+        pass
+    return set()
 
 # --- Локализация статусов ---
 STATUS_KIND_KEYS = {"RUNNING": "status_running", "LOADING": "status_loading", "STOPPED": "status_stopped", "ERROR": "status_error"}
 STATUS_DETAIL_KEYS = [
-    ("сессия не найдена", "status_detail_session_not_found", None), ("no server running", "status_detail_session_not_found", None), ("session not found", "status_detail_session_not_found", None),
-    ("/health ok", "status_detail_port_health", 1), ("модель еще не готова", "status_detail_port_loading", 1), ("модель ещё не готова", "status_detail_port_loading", 1), ("model is not ready", "status_detail_port_loading", 2),
-    ("не слушается", "status_detail_port_down", 5), ("is not listening", "status_detail_port_down", 4)
+    ("сессия не найдена", "status_detail_session_not_found", None), 
+    ("no server running", "status_detail_session_not_found", None), 
+    ("session not found", "status_detail_session_not_found", None),
+    ("/health ok", "status_detail_port_health", 1), 
+    ("модель еще не готова", "status_detail_port_loading", 1), 
+    ("модель ещё не готова", "status_detail_port_loading", 1), 
+    ("model is not ready", "status_detail_port_loading", 2),
+    ("не слушается", "status_detail_port_down", 5), 
+    ("is not listening", "status_detail_port_down", 4)
 ]
 ICON_BY_KIND = {"running": "🟢 ", "loading": "🟡 ", "stopped": "⚪ ", "error": "🔴 "}
 
@@ -155,14 +180,17 @@ def localize_status(raw, name, lang):
             break
     port = "?"
     conf_path = os.path.join(INSTANCES_DIR, f"{name}.conf")
-    if os.path.exists(conf_path): port = parse_conf(conf_path)[0]
+    if os.path.exists(conf_path): 
+        port = parse_conf(conf_path)[0]
+    
     label = tr(STATUS_KIND_KEYS[kind], lang)
     detail = ""
     if detail_key:
         detail = tr(detail_key, lang, port=port)
         if port_idx is None:
             m = re.search(r'(\d{4,5})', raw)
-            if m and 'порт' in detail: detail = detail.replace('порт', f"порт {m.group(1)}", 1)
+            if m and 'порт' in detail: 
+                detail = detail.replace('порт', f"порт {m.group(1)}", 1)
     icon = ICON_BY_KIND.get(kind.lower(), "")
     return f"{icon}{label} ({detail})" if detail else f"{icon}{label}"
 
@@ -175,9 +203,11 @@ def is_under_roots(path):
     try:
         norm = os.path.normpath(os.path.abspath(path))
         for root in roots:
-            if os.path.commonpath([os.path.normpath(os.path.abspath(root)), norm]) == os.path.normpath(os.path.abspath(root)):
+            abs_root = os.path.normpath(os.path.abspath(root))
+            if os.path.commonpath([abs_root, norm]) == abs_root:
                 return True
-    except: pass
+    except Exception:
+        pass
     return False
 
 def human_size(nbytes):
@@ -199,7 +229,7 @@ def browse_dir():
     
     target = os.path.abspath(rel) if os.path.isabs(rel) else os.path.abspath(os.path.join(roots[0] if roots else '/', rel.lstrip('/')))
     
-    if not is_under_roots(target): return err("err_path_forbidden", 403, lang=lang)
+    # УБРАНА проверка is_under_roots, чтобы можно было ходить выше стартовой папки
     if not os.path.isdir(target): return err("err_path_not_found", 404, lang=lang)
 
     folders, files = [], []
@@ -218,10 +248,11 @@ def browse_dir():
                 full = os.path.join(target, entry.name)
                 size = os.path.getsize(full)
                 files.append({"name": entry.name, "path": full, "size_gb": round(size/(1024**3), 2), "size_human": human_size(size)})
-        except: continue
+        except Exception:
+            continue
 
     parent = os.path.dirname(target) if target != "/" else ""
-    can_go_up = bool(parent) and (full_access or is_under_roots(parent))
+    can_go_up = bool(parent) # Разрешаем идти вверх всегда
     
     return jsonify({
         "cwd": target, "root": roots[0] if roots else "/",
@@ -245,14 +276,14 @@ def get_i18n():
 @app.route('/api/settings', methods=['GET'])
 def get_settings():
     cfg = load_config()
+    detected = find_llama_server() # Сканируем всегда
     if not cfg:
-        detected = find_llama_server()
         return jsonify({"needs_onboarding": True, "detected_binary": detected, "default_models_dir": os.path.join(BASE_DIR, "models")})
-    return jsonify({"needs_onboarding": False, "models_dir": cfg.get("models_dir", "/"), "llama_binary": cfg.get("llama_binary", "")})
+    return jsonify({"needs_onboarding": False, "models_dir": cfg.get("models_dir", "/"), "llama_binary": cfg.get("llama_binary", ""), "detected_binary": detected})
 
 @app.route('/api/settings', methods=['POST'])
 def save_settings():
-    data = request.json
+    data = request.json or {}
     cfg = load_config() or {}
     cfg["models_dir"] = data.get("models_dir", "/")
     cfg["llama_binary"] = data.get("llama_binary", "")
@@ -260,7 +291,8 @@ def save_settings():
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(cfg, f, indent=4, ensure_ascii=False)
         return jsonify({"status": "OK"})
-    except: return err("err_generic", 500)
+    except Exception:
+        return err("err_generic", 500)
 
 @app.route('/api/instances')
 def get_instances():
@@ -269,12 +301,15 @@ def get_instances():
     free_vram, free_ram = get_system_resources()
     confs = glob.glob(os.path.join(INSTANCES_DIR, "*.conf"))
     parsed_data, running_ports = [], []
+    
+    # Пакетное получение активных сессий (1 вызов tmux вместо N)
+    active_sessions = get_active_sessions()
 
     for conf_path in confs:
         name = os.path.basename(conf_path).replace(".conf", "")
         if not is_valid_name(name): continue
         port, model, gpu_layers, model_path, extra_args = parse_conf(conf_path)
-        is_running = is_session_running(name)
+        is_running = f"llama-{name}" in active_sessions
         parsed_data.append({"name": name, "port": port, "model": model, "args": extra_args, "gpu_layers": gpu_layers, "model_path": model_path, "is_running": is_running})
         if is_running and port != "?": running_ports.append(port)
 
@@ -288,8 +323,10 @@ def get_instances():
                 actual_gpu = min(data["gpu_layers"], 99)
                 vram_needed = file_size_mb * (actual_gpu / 99.0) + 500
                 ram_needed = file_size_mb * ((99.0 - actual_gpu) / 99.0) + 1000
-                if free_vram < vram_needed: can_start, reason = False, tr("reason_no_vram", lang, need=int(vram_needed), free=free_vram)
-                elif free_ram < ram_needed: can_start, reason = False, tr("reason_no_ram", lang, need=int(ram_needed), free=free_ram)
+                if free_vram < vram_needed: 
+                    can_start, reason = False, tr("reason_no_vram", lang, need=int(vram_needed), free=free_vram)
+                elif free_ram < ram_needed: 
+                    can_start, reason = False, tr("reason_no_ram", lang, need=int(ram_needed), free=free_ram)
             else:
                 can_start, reason = False, tr("err_model_not_found", lang)
 
@@ -306,20 +343,37 @@ def get_status(name):
     try:
         result = subprocess.run([MANAGER_SH, name, "status"], capture_output=True, text=True, timeout=5)
         return jsonify({"status": localize_status(result.stdout.strip(), name, lang)})
-    except:
+    except Exception:
         return jsonify({"status": "🔴 ERROR"})
+
+@app.route('/api/statuses')
+def get_all_statuses():
+    lang = get_locale()
+    statuses = {}
+    confs = glob.glob(os.path.join(INSTANCES_DIR, "*.conf"))
+    for conf_path in confs:
+        name = os.path.basename(conf_path).replace(".conf", "")
+        if not is_valid_name(name): continue
+        try:
+            result = subprocess.run([MANAGER_SH, name, "status"], capture_output=True, text=True, timeout=3)
+            statuses[name] = localize_status(result.stdout.strip(), name, lang)
+        except Exception:
+            statuses[name] = "🔴 ERROR"
+    return jsonify(statuses)
 
 @app.route('/api/action/<name>/<action>', methods=['POST'])
 def control_instance(name, action):
-    if not is_valid_name(name) or action not in ['start', 'stop', 'restart']: return err("err_invalid_name")
+    if not is_valid_name(name) or action not in ['start', 'stop', 'restart']: 
+        return err("err_invalid_name")
     try:
         result = subprocess.run([MANAGER_SH, name, action], capture_output=True, text=True, timeout=120)
         return jsonify({"output": result.stdout + result.stderr})
-    except: return err("err_server", 500)
+    except Exception: 
+        return err("err_server", 500)
 
 @app.route('/api/instances/create', methods=['POST'])
 def create_instance():
-    data = request.json
+    data = request.json or {}
     name, port, model, args = data.get('name', '').strip(), data.get('port', '').strip(), data.get('model', '').strip(), data.get('args', '').strip()
     if not is_valid_name(name): return err("err_invalid_name")
     if not port.isdigit() or not (1024 <= int(port) <= 65535): return err("err_invalid_port")
@@ -336,13 +390,14 @@ def create_instance():
         with open(conf_path, 'w', encoding='utf-8') as f:
             f.write(f"MODEL={shlex.quote(model)}\nPORT={port}\nALIAS=\"{name}\"\nEXTRA_ARGS={shlex.quote(args)}\n")
         return jsonify({"status": "OK"})
-    except: return err("err_server", 500)
+    except Exception: 
+        return err("err_server", 500)
 
 @app.route('/api/instances/<name>/update', methods=['POST'])
 def update_instance(name):
     if not is_valid_name(name): return err("err_invalid_name")
     if is_session_running(name): return err("err_running_stop_first")
-    data = request.json
+    data = request.json or {}
     port, model, args = data.get('port', '').strip(), data.get('model', '').strip(), data.get('args', '').strip()
     if not port.isdigit() or not (1024 <= int(port) <= 65535): return err("err_invalid_port")
     if not os.path.exists(model): return err("err_model_not_found")
@@ -359,7 +414,8 @@ def update_instance(name):
         with open(conf_path, 'w', encoding='utf-8') as f:
             f.write(f"MODEL={shlex.quote(model)}\nPORT={port}\nALIAS=\"{name}\"\nEXTRA_ARGS={shlex.quote(args)}\n")
         return jsonify({"status": "OK"})
-    except: return err("err_server", 500)
+    except Exception: 
+        return err("err_server", 500)
 
 @app.route('/api/instances/<name>/delete', methods=['POST'])
 def delete_instance(name):
@@ -370,14 +426,12 @@ def delete_instance(name):
     try:
         os.remove(conf_path)
         return jsonify({"status": "OK"})
-    except: return err("err_server", 500)
-
-
+    except Exception: 
+        return err("err_server", 500)
 
 @app.route('/README.md')
 @app.route('/README_ru.md')
 def serve_readme_files():
-    from flask import send_from_directory
     filename = request.path.strip('/')
     return send_from_directory(BASE_DIR, filename)
 
@@ -394,17 +448,20 @@ def get_guide():
         return f"{readme_file} not found", 404
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="LlamaPanel Web Server")
+    parser.add_argument('--port', type=int, default=8090, help="Port to run the web panel on")
+    args, _ = parser.parse_known_args()
 
     import logging as _logging
     _logging.getLogger('werkzeug').setLevel(_logging.ERROR)
     try:
         print("======================================")
-        print("🚀 Панель управления LlamaPanel запущена!")
-        print("👉 Откройте в браузере: http://<IP_СЕРВЕРА>:8090")
+        print(f"🚀 Панель управления LlamaPanel запущена на порту {args.port}!")
+        print(f"👉 Откройте в браузере: http://<IP_СЕРВЕРА>:{args.port}")
         print("======================================")
-        app.run(host='0.0.0.0', port=8090, debug=False)
+        app.run(host='0.0.0.0', port=args.port, debug=False)
     except OSError as e:
         if "Address already in use" in str(e) or "10048" in str(e):
-            print("\n❌ ОШИБКА: Порт 8090 уже занят другим процессом.")
+            print(f"\n❌ ОШИБКА: Порт {args.port} уже занят другим процессом.")
         else:
             print(f"\n❌ ОШИБКА при запуске сервера: {e}")

@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # BASE_DIR можно переопределить переменной окружения LLAMA_BASE_DIR
 BASE_DIR="${LLAMA_BASE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 INSTANCE=$1
@@ -7,9 +8,27 @@ CONF="$BASE_DIR/instances/$INSTANCE.conf"
 SESSION="llama-$INSTANCE"
 LOG="$BASE_DIR/logs/$INSTANCE.log"
 
+# --- ЦВЕТА ДЛЯ ТЕРМИНАЛА ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+RESET='\033[0m'
+
+# Отключаем цвета, если вывод перенаправлен (например, в Flask / subprocess)
+if [ ! -t 1 ]; then
+    RED=''
+    GREEN=''
+    YELLOW=''
+    BLUE=''
+    CYAN=''
+    RESET=''
+fi
+
 # Проверка аргументов
 if [ -z "$INSTANCE" ] || [ -z "$ACTION" ]; then
-    echo "Использование: $0 <имя_инстанса> {start|stop|restart|status|logs}"
+    echo -e "${CYAN}Использование:${RESET} $0 <имя_инстанса> {start|stop|restart|status|logs}"
     exit 1
 fi
 
@@ -17,46 +36,35 @@ fi
 BIN=""
 CONFIG_FILE="$BASE_DIR/config.json"
 
-# 1. Пытаемся прочитать путь из config.json (через Python, он уже есть в системе)
+# 1. Читаем путь из config.json через Python
 if [ -f "$CONFIG_FILE" ]; then
     BIN=$(python3 -c "import json; print(json.load(open('$CONFIG_FILE')).get('llama_binary', ''))" 2>/dev/null)
 fi
 
-# 2. Если в конфиге пусто, ищем в папке проекта
-if [ -z "$BIN" ] || [ ! -f "$BIN" ]; then
-    if [ -f "$BASE_DIR/build/bin/llama-server" ]; then
+# 2. Ищем в папке проекта или в PATH, если в конфиге пусто
+if [ ! -x "$BIN" ]; then
+    if [ -x "$BASE_DIR/build/bin/llama-server" ]; then
         BIN="$BASE_DIR/build/bin/llama-server"
+    else
+        BIN=$(command -v llama-server 2>/dev/null)
     fi
 fi
 
-# 3. Если нигде нет, ищем в системе (PATH)
-if [ -z "$BIN" ] || [ ! -f "$BIN" ]; then
-    BIN=$(which llama-server 2>/dev/null)
-fi
-
-# 4. Если так и не нашли — выходим с ошибкой
-if [ -z "$BIN" ] || [ ! -f "$BIN" ]; then
-    echo "ОШИБКА: Исполняемый файл llama-server не найден!"
-    echo "Пожалуйста, укажите путь к нему в настройках панели или установите llama.cpp."
+# 3. Если так и не нашли — выходим с ошибкой
+if [ ! -x "$BIN" ]; then
+    echo -e "${RED}ОШИБКА:${RESET} Исполняемый файл llama-server не найден!"
+    echo -e "Пожалуйста, укажите путь к нему в настройках панели или установите llama.cpp."
     exit 1
 fi
 
 # Загрузка и валидация конфига инстанса
 if [ -f "$CONF" ]; then
-    if [ ! -s "$CONF" ]; then
-        echo "ОШИБКА: Файл конфигурации $CONF пуст!"
-        exit 1
-    fi
-    if ! bash -n "$CONF" 2>/dev/null; then
-        echo "ОШИБКА: Обнаружена синтаксическая ошибка в файле конфигурации $CONF!"
-        exit 1
-    fi
+    [ ! -s "$CONF" ] && { echo -e "${RED}ОШИБКА:${RESET} Файл конфигурации $CONF пуст!"; exit 1; }
+    bash -n "$CONF" 2>/dev/null || { echo -e "${RED}ОШИБКА:${RESET} Обнаружена синтаксическая ошибка в файле конфигурации $CONF!"; exit 1; }
     source "$CONF"
-else
-    if [ "$ACTION" != "stop" ] && [ "$ACTION" != "status" ]; then
-        echo "ОШИБКА: Конфиг $CONF не найден!"
-        exit 1
-    fi
+elif [ "$ACTION" != "stop" ] && [ "$ACTION" != "status" ]; then
+    echo -e "${RED}ОШИБКА:${RESET} Конфиг $CONF не найден!"
+    exit 1
 fi
 
 # Дефолтные значения
@@ -65,32 +73,28 @@ EXTRA_ARGS=${EXTRA_ARGS:-""}
 
 # Функция проверки готовности через /health
 check_health() {
-    local code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/health" 2>/dev/null)
-    if [ "$code" = "200" ]; then
-        return 0
-    else
-        return 1
-    fi
+    [ "$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORT/health" 2>/dev/null)" = "200" ]
 }
 
 case "$ACTION" in
   start)
     if tmux has-session -t "$SESSION" 2>/dev/null; then
-        echo "Инстанс $INSTANCE УЖЕ ЗАПУЩЕН."
+        echo -e "${YELLOW}Инстанс $INSTANCE УЖЕ ЗАПУЩЕН.${RESET}"
         exit 0
     fi
     
-    if ss -tulpn 2>/dev/null | grep -q ":$PORT "; then
-        echo "ОШИБКА: Порт $PORT занят! Освободите его."
+    # Точная проверка порта с границей слова во избежание ложных срабатываний
+    if ss -tln 2>/dev/null | grep -qE ":$PORT\b"; then
+        echo -e "${RED}ОШИБКА:${RESET} Порт $PORT занят! Освободите его."
         exit 1
     fi
     
     mkdir -p "$BASE_DIR/logs"
-    echo "🚀 Запускаю $INSTANCE на порту $PORT..."
+    echo -e "${BLUE}🚀 Запускаю инстанс ${CYAN}$INSTANCE${BLUE} на порту ${CYAN}$PORT${BLUE}...${RESET}"
     
-    # Запуск (без LD_LIBRARY_PATH, бинарник сам знает свои библиотеки)
+    # Запуск в tmux с безопасным экранированием путей и дописыванием логов через tee -a
     tmux new-session -d -s "$SESSION" \
-      "source ~/.bashrc 2>/dev/null; $BIN --model $MODEL --port $PORT --host 0.0.0.0 --alias $ALIAS $EXTRA_ARGS 2>&1 | tee $LOG"
+      "source ~/.bashrc 2>/dev/null; \"$BIN\" --model \"$MODEL\" --port \"$PORT\" --host 0.0.0.0 --alias \"$ALIAS\" $EXTRA_ARGS 2>&1 | tee -a \"$LOG\""
     
     echo -n "⏳ Загрузка модели: "
     START_TIME=$(date +%s)
@@ -100,20 +104,20 @@ case "$ACTION" in
         ELAPSED=$(( $(date +%s) - START_TIME ))
         
         if ! tmux has-session -t "$SESSION" 2>/dev/null; then
-            echo -e "\n❌ ОШИБКА: Процесс llama-server завершился!"
-            echo "Последние строки лога:"
+            echo -e "\n${RED}❌ ОШИБКА: Процесс llama-server завершился аварийно!${RESET}"
+            echo -e "Последние строки лога (${LOG}):"
             tail -n 20 "$LOG"
             exit 1
         fi
         
         if check_health; then
-            echo -e "\n✅ ГОТОВО! Сервер отвечает 200 OK (за ${ELAPSED} сек)."
+            echo -e "\n${GREEN}✅ ГОТОВО! Сервер отвечает 200 OK (за ${ELAPSED} сек).${RESET}"
             exit 0
         fi
         
         if [ $ELAPSED -ge $TIMEOUT ]; then
-            echo -e "\n⚠️ ТАЙМАУТ: Модель не загрузилась за $TIMEOUT сек."
-            echo "Лог: $(tail -n 5 "$LOG")"
+            echo -e "\n${YELLOW}⚠️ ТАЙМАУТ: Модель не загрузилась за $TIMEOUT сек.${RESET}"
+            echo -e "Хвост лога:\n$(tail -n 5 "$LOG")"
             exit 1
         fi
         
@@ -125,9 +129,9 @@ case "$ACTION" in
   stop)
     if tmux has-session -t "$SESSION" 2>/dev/null; then
         tmux kill-session -t "$SESSION"
-        echo "🛑 Инстанс $INSTANCE остановлен."
+        echo -e "${GREEN}🛑 Инстанс $INSTANCE успешно остановлен.${RESET}"
     else
-        echo "Инстанс $INSTANCE не запущен."
+        echo -e "${YELLOW}Инстанс $INSTANCE не запущен.${RESET}"
     fi
     ;;
     
@@ -139,34 +143,34 @@ case "$ACTION" in
     
   status)
     if ! tmux has-session -t "$SESSION" 2>/dev/null; then
-        echo "⚪ СТАТУС: STOPPED (сессия не найдена)"
+        echo -e "${RESET}⚪ СТАТУС: ${RED}STOPPED${RESET} (сессия tmux не найдена)"
         exit 0
     fi
     
     if check_health; then
-        echo "🟢 СТАТУС: RUNNING (порт $PORT, /health OK)"
+        echo -e "${RESET}🟢 СТАТУС: ${GREEN}RUNNING${RESET} (порт $PORT, /health OK)"
     else
-        if ss -tulpn 2>/dev/null | grep -q ":$PORT "; then
-            echo "🟡 СТАТУС: LOADING (порт $PORT слушается, но модель еще не готова)"
+        if ss -tln 2>/dev/null | grep -qE ":$PORT\b"; then
+            echo -e "${RESET}🟡 СТАТУС: ${YELLOW}LOADING${RESET} (порт $PORT слушается, модель в процессе загрузки)"
         else
-            echo "🔴 СТАТУС: ERROR (сессия есть, но порт $PORT не слушается)"
+            echo -e "${RESET}🔴 СТАТУС: ${RED}ERROR${RESET} (сессия есть, но порт $PORT не слушается)"
         fi
     fi
     ;;
     
   logs)
     if tmux has-session -t "$SESSION" 2>/dev/null; then
-        echo "Подключаюсь к логам. Выход: Ctrl+B, затем D."
+        echo -e "${CYAN}Подключаюсь к логам инстанса. Для выхода нажмите:${RESET} Ctrl+B, затем D."
         sleep 1
         tmux attach -t "$SESSION"
     else
-        echo "Инстанс не запущен. Исторический лог:"
+        echo -e "${YELLOW}Инстанс не запущен. Последние 50 строк исторического лога:${RESET}"
         tail -n 50 "$LOG" 2>/dev/null || echo "Лог отсутствует."
     fi
     ;;
     
   *)
-    echo "Неизвестное действие: $ACTION"
+    echo -e "${RED}Неизвестное действие:${RESET} $ACTION"
     exit 1
     ;;
 esac

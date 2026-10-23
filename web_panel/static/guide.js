@@ -1,25 +1,37 @@
+let cachedGuideMarkdown = null;
+
 async function openGuide() {
-    // Закрываем меню настроек
+    // Закрываем меню настроек, если оно открыто
     if (typeof closeSettingsMenu === 'function') closeSettingsMenu();
     
     const guideBody = document.getElementById('guide-body');
-    guideBody.innerHTML = '<p style="text-align:center; color:#888;">Загрузка руководства...</p>';
-    document.getElementById('guideModal').classList.add('active');
+    const modal = document.getElementById('guideModal');
+    if (!guideBody || !modal) return;
+    
+    modal.classList.add('active');
+    
+    // Если руководство уже загружалось ранее — рендерим из кэша мгновенно
+    if (cachedGuideMarkdown) {
+        guideBody.innerHTML = marked.parse(cachedGuideMarkdown);
+        return;
+    }
+    
+    guideBody.innerHTML = `<p style="text-align:center; color:var(--text-muted);">${typeof t === 'function' ? t('explorer_loading') : 'Загрузка руководства...'}</p>`;
     
     try {
         const res = await fetch('/api/guide');
         if (res.ok) {
-            const markdown = await res.text();
-            // Превращаем Markdown в HTML
-            guideBody.innerHTML = marked.parse(markdown);
+            cachedGuideMarkdown = await res.text();
+            guideBody.innerHTML = marked.parse(cachedGuideMarkdown);
         } else {
-            guideBody.innerHTML = '<p>Ошибка загрузки руководства (404). Проверьте наличие README.md в корне проекта.</p>';
+            guideBody.innerHTML = `<p style="color: var(--danger);">Ошибка загрузки руководства (404). Проверьте наличие README.md в корне проекта.</p>`;
         }
     } catch (e) {
-        guideBody.innerHTML = '<p>Ошибка сети при загрузке руководства.</p>';
+        guideBody.innerHTML = `<p style="color: var(--danger);">Ошибка сети при загрузке руководства.</p>`;
     }
 }
 
 function closeGuide() {
-    document.getElementById('guideModal').classList.remove('active');
+    const modal = document.getElementById('guideModal');
+    if (modal) modal.classList.remove('active');
 }

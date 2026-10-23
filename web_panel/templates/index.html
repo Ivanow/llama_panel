@@ -12,10 +12,10 @@
 
     <header>
         <h1>
-            <svg style="width:28px; height:28px; color: var(--accent);" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            <svg class="header-logo" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
             <span data-i18n="app_title">LlamaPanel</span>
         </h1>
-        <div style="display: flex; gap: 10px; align-items: center;">
+        <div class="header-actions">
             <button class="btn-primary" onclick="openModal()">
                 <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 <span data-i18n="btn_add_server">Добавить сервер</span>
@@ -46,63 +46,64 @@
         </div>
     </header>
 
-    <div class="grid" id="instances-grid">
+    <main class="grid" id="instances-grid">
         <p data-i18n="loading_configs">Загрузка конфигураций...</p>
-    </div>
+    </main>
 
     <!-- МОДАЛЬНОЕ ОКНО НАСТРОЕК / ПРИВЕТСТВИЯ -->
     <div id="settingsModal" class="modal">
-        <div class="modal-content" style="max-width: 650px;">
+        <div class="modal-content modal-md">
             <span class="close-btn" onclick="closeSettings()">&times;</span>
-            <h2 id="settings-title" style="margin-top:0; font-weight: 600; margin-bottom: 10px;" data-i18n="welcome_title">Добро пожаловать!</h2>
-            <p id="settings-desc" style="color: var(--text-muted); margin-bottom: 25px;" data-i18n="welcome_desc">Настроим панель.</p>
+            <h2 id="settings-title" class="modal-title" data-i18n="welcome_title">Добро пожаловать!</h2>
+            <p id="settings-desc" class="modal-desc" data-i18n="welcome_desc">Настроим панель.</p>
             
             <div class="form-group">
                 <label data-i18n="settings_models_dir">Папка с моделями</label>
-                <div style="display: flex; gap: 10px;">
+                <div class="input-group">
                     <input type="text" id="set-models-dir" placeholder="/stor001/models">
-                    <button type="button" onclick="openExplorer('settings_models')" style="white-space: nowrap;">
+                    <button type="button" class="btn-secondary" onclick="openExplorer('settings_models')">
                         <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                         <span data-i18n="btn_browse">Обзор</span>
                     </button>
                 </div>
-                <small style="color: var(--text-muted); font-size: 11px; margin-top: 5px; display: block;" data-i18n="settings_models_dir_hint">По умолчанию мы создали папку models внутри проекта. Если ваши модели лежат в другом месте — выберите нужную папку.</small>
+                <small class="form-hint" data-i18n="settings_models_dir_hint">По умолчанию мы создали папку models внутри проекта. Если ваши модели лежат в другом месте — выберите нужную папку.</small>
             </div>
 
             <div class="form-group">
                 <label data-i18n="settings_llama_bin">Путь к llama-server</label>
-                <div style="display: flex; gap: 10px;">
+                <div class="input-group">
                     <input type="text" id="set-llama-bin" placeholder="/usr/local/bin/llama-server">
-                    <button type="button" onclick="openExplorer('settings_binary')" style="white-space: nowrap;">
+                    <button type="button" class="btn-secondary" onclick="openExplorer('settings_binary')">
                         <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                         <span data-i18n="btn_browse">Обзор</span>
                     </button>
                 </div>
-                <div id="binary-status" style="font-size: 13px; margin-top: 8px; line-height: 1.4;"></div>
-                <button type="button" onclick="rescanBinary()" style="margin-top: 10px; font-size: 12px; padding: 6px 12px;">
+                <div id="binary-status" class="binary-status-text"></div>
+                <button type="button" class="btn-sm" onclick="rescanBinary(event)" style="margin-top: 10px;">
                     <svg viewBox="0 0 24 24"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
                     <span data-i18n="btn_scan_binary">Сканировать снова</span>
                 </button>
             </div>
 
-            <button class="btn-primary" onclick="saveSettings()" style="width: 100%; padding: 14px; font-size: 16px; margin-top: 15px;">
+            <button class="btn-primary btn-block" onclick="saveSettings()">
                 <span data-i18n="btn_save_settings">Сохранить и начать</span>
             </button>
         </div>
     </div>
 
+    <!-- МОДАЛЬНОЕ ОКНО НОВОГО ИНСТАНСА -->
     <div id="addModal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">&times;</span>
-            <h2 id="modal-title" style="margin-top:0; font-weight: 600; margin-bottom: 25px;" data-i18n="modal_new_instance">Новый инстанс</h2>
+            <h2 id="modal-title" class="modal-title" data-i18n="modal_new_instance">Новый инстанс</h2>
             
             <form id="addForm" onsubmit="saveInstance(event)">
                 <div class="form-row">
-                    <div class="form-group" style="flex: 2;">
+                    <div class="form-group flex-2">
                         <label data-i18n="label_name">Имя конфига</label>
                         <input type="text" id="new-name" required placeholder="qwen-coder" pattern="[a-zA-Z0-9_\-]+">
                     </div>
-                    <div class="form-group" style="flex: 1;">
+                    <div class="form-group flex-1">
                         <label data-i18n="label_port">Порт</label>
                         <input type="number" id="new-port" required value="8081" min="1024" max="65535">
                     </div>
@@ -110,9 +111,9 @@
 
                 <div class="form-group">
                     <label data-i18n="label_model_path">Путь к модели (.gguf)</label>
-                    <div style="display: flex; gap: 10px;">
+                    <div class="input-group">
                         <input type="text" id="new-model" required placeholder="/stor001/models/...">
-                        <button type="button" onclick="openExplorer('main')" style="white-space: nowrap;">
+                        <button type="button" class="btn-secondary" onclick="openExplorer('main')">
                             <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                             <span data-i18n="btn_browse">Обзор</span>
                         </button>
@@ -130,11 +131,11 @@
                     </select>
                 </div>
 
-                <div class="form-group" style="margin-top: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                        <label style="margin: 0;" data-i18n="label_args">Аргументы запуска</label>
-                        <button type="button" onclick="toggleArgsBuilder()" style="padding: 6px 12px; font-size: 12px;">
-                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                <div class="form-group mt-lg">
+                    <div class="flex-between mb-sm">
+                        <label class="m-0" data-i18n="label_args">Аргументы запуска</label>
+                        <button type="button" class="btn-sm" onclick="toggleArgsBuilder()">
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1 z"></path></svg>
                             <span data-i18n="btn_configure">Настроить</span>
                         </button>
                     </div>
@@ -160,7 +161,7 @@
                             </div>
                         </div>
 
-                        <div id="group-generation" class="args-grid" style="margin-top: 15px;">
+                        <div id="group-generation" class="args-grid mt-md">
                             <div class="arg-section-title" data-i18n="sec_generation">Оптимизация генерации</div>
                             <div class="arg-item">
                                 <label><input type="checkbox" id="arg-flash" checked onchange="onArgChange()"> <span data-i18n="arg_flash">Flash Attention (KV Cache q8_0)</span></label>
@@ -172,7 +173,7 @@
                             </div>
                         </div>
 
-                        <div id="group-reasoning" class="args-grid" style="margin-top: 15px;">
+                        <div id="group-reasoning" class="args-grid mt-md">
                             <div class="arg-section-title" data-i18n="sec_reasoning">Управление рассуждениями (Reasoning)</div>
                             <div class="arg-item">
                                 <label><span data-i18n="arg_reasoning_mode">Режим (--reasoning)</span></label>
@@ -204,13 +205,13 @@
                             </div>
                         </div>
 
-                        <div id="group-vision" class="args-grid" style="margin-top: 15px;">
+                        <div id="group-vision" class="args-grid mt-md">
                             <div class="arg-section-title" data-i18n="sec_vision">Мультимодальность (Vision)</div>
                             <div class="arg-item">
                                 <label data-i18n="arg_mmproj">Проектор (--mmproj)</label>
-                                <div style="display: flex; gap: 5px;">
+                                <div class="input-group">
                                     <input type="text" id="arg-mmproj" data-i18n-placeholder="ph_mmproj" placeholder="Путь к mmproj-*.gguf" onchange="onArgChange()">
-                                    <button type="button" onclick="openExplorer('mmproj')" style="padding: 0 10px;">
+                                    <button type="button" class="btn-secondary px-sm" onclick="openExplorer('mmproj')">
                                         <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                                     </button>
                                 </div>
@@ -218,13 +219,13 @@
                             </div>
                         </div>
 
-                        <div id="group-draft" class="args-grid" style="margin-top: 15px;">
+                        <div id="group-draft" class="args-grid mt-md">
                             <div class="arg-section-title" data-i18n="sec_draft">Спекулятивное декодирование (Draft)</div>
                             <div class="arg-item">
                                 <label><span data-i18n="arg_draft_model">Черновая модель (-md)</span></label>
-                                <div style="display: flex; gap: 5px;">
+                                <div class="input-group">
                                     <input type="text" id="arg-draft-model" data-i18n-placeholder="ph_draft_model" placeholder="Путь к draft-модели (0.5B)" onchange="onArgChange()">
-                                    <button type="button" onclick="openExplorer('draft')" style="padding: 0 10px;">
+                                    <button type="button" class="btn-secondary px-sm" onclick="openExplorer('draft')">
                                         <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                                     </button>
                                 </div>
@@ -235,14 +236,14 @@
                                 <input type="number" id="arg-draft-max" value="16" onchange="onArgChange()">
                                 <small data-i18n="hint_draft_max">Сколько токенов предлагает draft</small>
                             </div>
-                            <div class="arg-item" style="grid-column: 1 / -1;">
-                                <div id="draft-warning" style="padding: 10px; background: rgba(245, 158, 11, 0.1); border-left: 3px solid var(--warning); border-radius: 4px; font-size: 12px; color: var(--warning);">
+                            <div class="arg-item span-all">
+                                <div id="draft-warning" class="warning-banner">
                                     <b>⚠️ Внимание:</b> Для работы Draft в новых версиях llama.cpp автоматически будет добавлен флаг <code>--spec-type draft-simple</code>.
                                 </div>
                             </div>
                         </div>
 
-                        <div id="group-moe" class="args-grid" style="margin-top: 15px;">
+                        <div id="group-moe" class="args-grid mt-md">
                             <div class="arg-section-title" data-i18n="sec_moe">MoE (DeepSeek / Mixtral)</div>
                             <div class="arg-item">
                                 <label><span data-i18n="arg_moe">MoE CPU Слои (--n-cpu-moe)</span></label>
@@ -251,7 +252,7 @@
                             </div>
                         </div>
 
-                        <div id="group-embedding" class="args-grid" style="margin-top: 15px; display: none;">
+                        <div id="group-embedding" class="args-grid mt-md" style="display: none;">
                             <div class="arg-section-title" data-i18n="sec_embedding">Настройки эмбеддингов</div>
                             <div class="arg-item">
                                 <label><span data-i18n="arg_pooling">Тип пулинга (--pooling)</span></label>
@@ -265,7 +266,7 @@
                             </div>
                         </div>
 
-                        <div id="group-reranking" class="args-grid" style="margin-top: 15px; display: none;">
+                        <div id="group-reranking" class="args-grid mt-md" style="display: none;">
                             <div class="arg-section-title" data-i18n="sec_reranking">Настройки реранкинга</div>
                             <div class="arg-item">
                                 <label data-i18n="arg_rerank">Реранкинг включён (--reranking)</label>
@@ -273,22 +274,27 @@
                             </div>
                         </div>
 
-                        <button type="button" class="btn-primary" onclick="buildArgs()" style="width: 100%; margin-top: 15px; padding: 10px;"><span data-i18n="btn_apply_args">Применить аргументы</span></button>
+                        <button type="button" class="btn-primary btn-block mt-md" onclick="buildArgs()">
+                            <span data-i18n="btn_apply_args">Применить аргументы</span>
+                        </button>
                     </div>
                 </div>
 
-                <button type="submit" id="btn-submit" class="btn-primary" style="width: 100%; padding: 14px; font-size: 16px; margin-top: 10px;"><span data-i18n="btn_create_config">Создать конфиг</span></button>
+                <button type="submit" id="btn-submit" class="btn-primary btn-block mt-sm" style="padding: 14px; font-size: 16px;">
+                    <span data-i18n="btn_create_config">Создать конфиг</span>
+                </button>
             </form>
         </div>
     </div>
 
+    <!-- ФАЙЛОВЫЙ БРАУЗЕР -->
     <div id="explorerModal" class="modal-overlay">
         <div class="modal-content">
             <span class="close-btn" onclick="closeExplorer()">&times;</span>
-            <h3 style="margin-top:0; margin-bottom: 15px;" data-i18n="explorer_title">Выбор файла</h3>
-            <div id="explorer" class="explorer" style="display: flex;">
+            <h3 class="modal-subtitle" data-i18n="explorer_title">Выбор файла</h3>
+            <div id="explorer" class="explorer flex-col">
                 <div class="explorer-header">
-                    <button type="button" id="btn-up" onclick="goUp()" style="display: none; padding: 6px 10px;">
+                    <button type="button" id="btn-up" class="btn-secondary" onclick="goUp()" style="display: none;">
                         <svg viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
                     </button>
                     <input type="text" id="model-search" data-i18n-placeholder="ph_search" placeholder="Поиск в текущей папке..." oninput="renderExplorer()">
@@ -299,6 +305,7 @@
         </div>
     </div>
 
+    <!-- РУКОВОДСТВО -->
     <div id="guideModal" class="modal">
         <div class="modal-content guide-content">
             <span class="close-btn" onclick="closeGuide()">&times;</span>

@@ -106,7 +106,6 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .icon-btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .settings-menu {
     display: none; position: absolute; top: 46px; right: 0; z-index: 3000;
-    /* непрозрачный фон меню (полупрозрачность делала его «пустым») */
     min-width: 230px; background-color: #16202f;
     border: 1px solid var(--glass-border);
     border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.5); overflow: hidden;
@@ -130,7 +129,7 @@ button:disabled { opacity: 0.4; cursor: not-allowed; }
 .lang-option.active { color: var(--accent); font-weight: 600; }
 .lang-check { width: 14px; text-align: center; color: var(--accent); }
 
-/* === Модальное окно руководства (затеняет весь интерфейс) === */
+/* === Модальное окно руководства === */
 .guide-content { max-width: 760px; max-height: 85vh; overflow-y: auto; }
 .guide-body { color: var(--text-main); font-size: 14px; line-height: 1.7; }
 .guide-body h2 { color: var(--accent); margin: 0 0 15px 0; font-size: 22px; }
@@ -189,9 +188,92 @@ input:focus, select:focus { border-color: var(--accent); outline: none; box-shad
 
 svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
+
+/* ==========================================
+   УТИЛИТАРНЫЕ КЛАССЫ И ПОМОЩНИКИ ВЕРСТКИ
+   ========================================== */
+.header-logo { width: 28px; height: 28px; color: var(--accent); flex-shrink: 0; }
+.header-actions { display: flex; gap: 10px; align-items: center; }
+
+/* Модалки */
+.modal-md { max-width: 650px; }
+.modal-title { margin-top: 0; font-weight: 600; margin-bottom: 10px; }
+.modal-desc { color: var(--text-muted); margin-bottom: 25px; font-size: 14px; }
+.modal-subtitle { margin-top: 0; margin-bottom: 15px; font-weight: 600; }
+
+/* Инпуты и кнопки */
+.input-group { display: flex; gap: 10px; }
+.btn-secondary {
+    background: var(--btn-bg); color: var(--text-main); border: 1px solid var(--glass-border);
+    white-space: nowrap; padding: 10px 18px; border-radius: 10px; cursor: pointer; transition: 0.2s;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-secondary:hover { background: var(--btn-hover); }
+.btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
+.btn-block { width: 100%; }
+.form-hint { color: var(--text-muted); font-size: 11px; margin-top: 5px; display: block; }
+.binary-status-text { font-size: 13px; margin-top: 8px; line-height: 1.4; }
+
+/* Flex-утилиты */
+.flex-1 { flex: 1; }
+.flex-2 { flex: 2; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+.flex-col { display: flex; flex-direction: column; }
+.span-all { grid-column: 1 / -1; }
+
+/* Отступы (Margin / Padding) */
+.m-0 { margin: 0 !important; }
+.mt-sm { margin-top: 10px; }
+.mt-md { margin-top: 15px; }
+.mt-lg { margin-top: 20px; }
+.mb-sm { margin-bottom: 8px; }
+.px-sm { padding-left: 10px; padding-right: 10px; }
+
+/* Плашка предупреждения (Draft) */
+.warning-banner {
+    padding: 10px; 
+    background: rgba(245, 158, 11, 0.1); 
+    border-left: 3px solid var(--warning); 
+    border-radius: 4px; 
+    font-size: 12px; 
+    color: var(--warning);
+}
+.warning-banner code {
+    color: var(--text-main);
+    background: rgba(0,0,0,0.3);
+    padding: 2px 4px;
+    border-radius: 4px;
+}
+
+
+/* ==========================================
+   АДАПТИВНОСТЬ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ
+   ========================================== */
 @media (max-width: 768px) {
+    body {
+        padding: 12px;
+    }
+    header {
+        margin-bottom: 20px;
+        gap: 10px;
+    }
+    h1 {
+        font-size: 18px; /* Компактный заголовок под мобилки */
+        gap: 6px;
+    }
+    /* Кнопка «Добавить сервер» — скрываем текст, оставляем иконку плюса для экономии места */
+    header .btn-primary span {
+        display: none; 
+    }
+    header .btn-primary {
+        padding: 10px;
+        border-radius: 8px;
+    }
     .form-row { flex-direction: column; gap: 0; }
     .args-grid { grid-template-columns: 1fr; }
     .modal-content { padding: 20px; max-height: 90vh; overflow-y: auto; }
     .controls { flex-direction: column; }
+    .grid {
+        grid-template-columns: 1fr; /* Карточки занимают всю ширину экрана */
+    }
 }

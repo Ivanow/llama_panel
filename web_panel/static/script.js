@@ -8,7 +8,11 @@ let I18N_AVAILABLE = {};
 
 function t(key, vars) {
     let s = I18N[key] || key;
-    if (vars) Object.keys(vars).forEach(v => { s = s.split('{' + v + '}').join(vars[v]); });
+    if (vars) {
+        Object.keys(vars).forEach(v => {
+            s = s.split('{' + v + '}').join(vars[v]);
+        });
+    }
     return s;
 }
 
@@ -21,7 +25,9 @@ async function loadI18n() {
         I18N = data.strings || {};
         applyStaticTranslations();
         renderLangList();
-    } catch (e) { console.error('i18n load error:', e); }
+    } catch (e) {
+        console.error('i18n load error:', e);
+    }
 }
 
 function applyStaticTranslations() {
@@ -37,24 +43,34 @@ function applyStaticTranslations() {
 function renderLangList() {
     const list = document.getElementById('lang-list');
     if (!list) return;
-    list.innerHTML = '';
+    
+    const fragment = document.createDocumentFragment();
     Object.keys(I18N_AVAILABLE).sort().forEach(code => {
         const item = document.createElement('div');
         item.className = 'lang-option' + (code === I18N_LANG ? ' active' : '');
-        item.innerHTML = '<span class="lang-check">' + (code === I18N_LANG ? '✓' : '') + '</span><span>' + I18N_AVAILABLE[code] + '</span>';
-        item.onclick = (ev) => { ev.stopPropagation(); setLanguage(code); };
-        list.appendChild(item);
+        item.innerHTML = `<span class="lang-check">${code === I18N_LANG ? '✓' : ''}</span><span>${I18N_AVAILABLE[code]}</span>`;
+        item.addEventListener('click', (ev) => {
+            ev.stopPropagation();
+            setLanguage(code);
+        });
+        fragment.appendChild(item);
     });
+    list.innerHTML = '';
+    list.appendChild(fragment);
 }
 
 function setLanguage(code) {
-    document.cookie = 'lang=' + encodeURIComponent(code) + ';path=/;max-age=31536000;samesite=Lax';
+    document.cookie = `lang=${encodeURIComponent(code)};path=/;max-age=31536000;samesite=Lax`;
     location.reload();
 }
 
 function trRaw(s) {
     if (!s) return s;
     return s.replace(/СТАТУС:|STATUS:/g, '').replace(/session not found/gi, t('status_detail_session_not_found'));
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 /* ==================== МЕНЮ ШЕСТЕРЁНКИ ==================== */
@@ -75,11 +91,13 @@ function toggleLangList(ev) {
 
 function closeSettingsMenu() {
     const menu = document.getElementById('settings-menu');
-    menu.classList.remove('open');
-    document.getElementById('lang-list').classList.remove('open');
-    document.getElementById('btn-settings').setAttribute('aria-expanded', 'false');
+    if (menu) menu.classList.remove('open');
+    const langList = document.getElementById('lang-list');
+    if (langList) langList.classList.remove('open');
+    const btnSettings = document.getElementById('btn-settings');
+    if (btnSettings) btnSettings.setAttribute('aria-expanded', 'false');
 }
-document.addEventListener('click', () => closeSettingsMenu());
+document.addEventListener('click', closeSettingsMenu);
 
 /* ==================== НАСТРОЙКИ И ПРИВЕТСТВИЕ ==================== */
 async function loadSettings() {
@@ -125,8 +143,9 @@ function updateBinaryStatus(path) {
     }
 }
 
-async function rescanBinary() {
-    const btn = event.currentTarget;
+async function rescanBinary(e) {
+    const btn = e ? e.currentTarget : document.getElementById('btn-scan');
+    if (!btn) return;
     const orig = btn.innerHTML;
     btn.innerHTML = '⏳...';
     btn.disabled = true;
@@ -152,7 +171,7 @@ async function saveSettings() {
         });
         if (res.ok) {
             closeSettings();
-            loadInstances(); // Перезагружаем карточки после сохранения
+            loadInstances();
             alert(t('settings_saved'));
         } else {
             alert("Ошибка при сохранении настроек.");
@@ -167,16 +186,21 @@ async function loadInstances() {
         const response = await fetch('/api/instances');
         const instances = await response.json();
         grid.innerHTML = '';
-        if (instances.length === 0) { grid.innerHTML = '<p>' + t('no_servers') + '</p>'; return; }
+        if (instances.length === 0) { 
+            grid.innerHTML = '<p>' + t('no_servers') + '</p>'; 
+            return; 
+        }
 
+        const fragment = document.createDocumentFragment();
         instances.forEach(inst => {
             const card = document.createElement('div');
             card.className = 'card' + (inst.can_start === false ? ' disabled' : '');
             card.id = 'card-' + inst.name;
+            card.dataset.canStart = inst.can_start !== false; // Запоминаем, можно ли запускать
 
             card.innerHTML = `
                 <div class="card-header">
-                    <span class="card-title" id="title-${inst.name}">${inst.name}</span>
+                    <span class="card-title" id="title-${inst.name}">${escapeHtml(inst.name)}</span>
                     <div style="display:flex; align-items:center; gap:5px;">
                         <span class="status-dot" id="dot-${inst.name}"></span>
                         <button onclick="editInstance('${inst.name}')" style="padding: 4px; background: transparent; border: none; cursor: pointer; color: var(--text-muted);" title="${t('title_edit')}">
@@ -187,8 +211,8 @@ async function loadInstances() {
                         </button>
                     </div>
                 </div>
-                <div class="info">${t('card_port')}: <span>${inst.port}</span><br>${t('card_model')}: <span style="font-size:12px;" title="${inst.model}">${inst.model.substring(0, 30)}...</span></div>
-                <div class="status-text" id="status-${inst.name}" style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">${inst.can_start === false ? inst.reason : t('checking')}</div>
+                <div class="info">${t('card_port')}: <span>${inst.port}</span><br>${t('card_model')}: <span style="font-size:12px;" title="${escapeHtml(inst.model)}">${escapeHtml(inst.model.substring(0, 30))}...</span></div>
+                <div class="status-text" id="status-${inst.name}" style="font-size: 12px; color: var(--text-muted); margin-top: 5px;">${inst.can_start === false ? escapeHtml(inst.reason) : t('checking')}</div>
                 <div class="loader-bar" id="loader-${inst.name}"><div class="loader-fill"></div></div>
                 <div class="controls">
                     <button class="btn-primary" onclick="doAction('${inst.name}', 'start', this)" ${inst.can_start === false ? 'disabled' : ''}>${t('btn_start')}</button>
@@ -196,65 +220,92 @@ async function loadInstances() {
                     <button onclick="doAction('${inst.name}', 'restart', this)">${t('btn_restart')}</button>
                 </div>
             `;
-            grid.appendChild(card);
+            fragment.appendChild(card);
         });
+        grid.appendChild(fragment);
         updateAllStatuses();
-    } catch (e) { grid.innerHTML = '<p style="color: red;">' + t('error_prefix') + ': ' + e + '</p>'; }
+    } catch (e) { 
+        grid.innerHTML = '<p style="color: red;">' + t('error_prefix') + ': ' + e + '</p>'; 
+    }
 }
 
 async function updateAllStatuses() {
     const cards = document.querySelectorAll('.card');
-    for (const card of cards) {
-        const name = card.id.replace('card-', '');
-        if (document.getElementById('loader-' + name)?.classList.contains('active')) continue;
-        try {
-            const res = await fetch('/api/status/' + name);
-            const data = await res.json();
-            const statusStr = data.status;
+    if (cards.length === 0) return;
+
+    try {
+        const res = await fetch('/api/statuses');
+        if (!res.ok) return;
+        const statuses = await res.json();
+        
+        cards.forEach(card => {
+            const name = card.id.replace('card-', '');
+            const loader = document.getElementById('loader-' + name);
+            if (loader && loader.classList.contains('active')) return;
+
+            const statusStr = statuses[name];
+            if (!statusStr) return;
+
             const dot = document.getElementById('dot-' + name);
             const title = document.getElementById('title-' + name);
-            const btnStart = card.querySelectorAll('.controls button')[0];
-            const btnStop = card.querySelectorAll('.controls button')[1];
-            const btnRestart = card.querySelectorAll('.controls button')[2];
-            const btnEdit = card.querySelectorAll('.card-header button')[0];
-            const btnDelete = card.querySelectorAll('.card-header button')[1];
+            const buttons = card.querySelectorAll('.controls button');
+            const headerButtons = card.querySelectorAll('.card-header button');
             const statusText = document.getElementById('status-' + name);
+            const canStart = card.dataset.canStart === 'true'; // Читаем наш флаг
 
-            // Проверяем наличие и английского, и русского статуса
-            const isRunning = statusStr.includes('RUNNING') || statusStr.includes('РАБОТАЕТ');
-            const isLoading = statusStr.includes('LOADING') || statusStr.includes('ЗАГРУЗКА');
+            if (!dot || !title || buttons.length < 3) return;
+
+            const isRunning = statusStr.includes('RUNNING') || statusStr.includes('РАБОТАЕТ') || statusStr.includes('🟢');
+            const isLoading = statusStr.includes('LOADING') || statusStr.includes('ЗАГРУЗКА') || statusStr.includes('🟡');
 
             if (isRunning) {
-                dot.className = 'status-dot online'; title.className = 'card-title title-online';
+                dot.className = 'status-dot online'; 
+                title.className = 'card-title title-online';
                 card.classList.remove('disabled');
-                btnStart.disabled = true; btnStop.disabled = false; btnRestart.disabled = false;
-                btnEdit.disabled = true; btnDelete.disabled = true; // Блокируем редактирование и удаление
+                buttons[0].disabled = true;
+                buttons[1].disabled = false;
+                buttons[2].disabled = false;
+                if (headerButtons[0]) headerButtons[0].disabled = true; 
+                if (headerButtons[1]) headerButtons[1].disabled = true;
                 statusText.innerText = trRaw(statusStr);
             } else if (isLoading) {
-                dot.className = 'status-dot loading'; title.className = 'card-title title-loading';
-                btnStart.disabled = true; btnStop.disabled = true; btnRestart.disabled = true;
-                btnEdit.disabled = true; btnDelete.disabled = true; // Блокируем редактирование и удаление
+                dot.className = 'status-dot loading'; 
+                title.className = 'card-title title-loading';
+                buttons[0].disabled = true; 
+                buttons[1].disabled = true; 
+                buttons[2].disabled = true;
+                if (headerButtons[0]) headerButtons[0].disabled = true; 
+                if (headerButtons[1]) headerButtons[1].disabled = true;
                 statusText.innerText = trRaw(statusStr);
             } else {
-                dot.className = 'status-dot offline'; title.className = 'card-title title-offline';
-                btnStop.disabled = true; btnRestart.disabled = true;
-                btnEdit.disabled = false; btnDelete.disabled = false; // Разблокируем
+                dot.className = 'status-dot offline'; 
+                title.className = 'card-title title-offline';
+                // ФИКС: Не включаем кнопку Старт, если не хватает ресурсов
+                buttons[0].disabled = !canStart; 
+                buttons[1].disabled = true;  
+                buttons[2].disabled = true;  
+                if (headerButtons[0]) headerButtons[0].disabled = false; 
+                if (headerButtons[1]) headerButtons[1].disabled = false; 
                 if (statusText.innerText === t('checking')) statusText.innerText = trRaw(statusStr);
             }
-        } catch(e) { console.error(e); }
+        });
+    } catch(e) { 
+        console.error('Batch status update error:', e); 
     }
 }
 
 async function doAction(name, action, btn) {
     const card = document.getElementById('card-' + name);
-    card.querySelectorAll('.controls button').forEach(b => b.disabled = true);
+    if (card) card.querySelectorAll('.controls button').forEach(b => b.disabled = true);
     const loader = document.getElementById('loader-' + name);
-    if (action === 'start' || action === 'restart') loader.classList.add('active');
+    if (loader && (action === 'start' || action === 'restart')) loader.classList.add('active');
 
-    try { await fetch('/api/action/' + name + '/' + action, { method: 'POST' }); }
-    catch(e) { alert(t('error_prefix') + ': ' + e); }
-    finally {
-        loader.classList.remove('active');
+    try { 
+        await fetch('/api/action/' + name + '/' + action, { method: 'POST' }); 
+    } catch(e) { 
+        alert(t('error_prefix') + ': ' + e); 
+    } finally {
+        if (loader) loader.classList.remove('active');
         if (action === 'stop') setTimeout(loadInstances, 2000);
         else updateAllStatuses();
     }
@@ -315,10 +366,6 @@ function closeExplorer() {
     document.getElementById('model-search').value = '';
 }
 
-function escapeHtml(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 function renderExplorer() {
     const list = document.getElementById('model-list');
     const breadcrumbs = document.getElementById('breadcrumbs');
@@ -328,7 +375,6 @@ function renderExplorer() {
 
     breadcrumbs.innerHTML = '';
 
-    // Полный текущий путь (чтобы всегда было видно, где мы)
     const currentPathDiv = document.createElement('div');
     currentPathDiv.style.width = '100%';
     currentPathDiv.style.marginBottom = '10px';
@@ -337,7 +383,6 @@ function renderExplorer() {
     currentPathDiv.innerHTML = '<b style="color:var(--text-main);">Текущий путь:</b> ' + escapeHtml(browseData.cwd);
     breadcrumbs.appendChild(currentPathDiv);
 
-    // Селектор корней
     const rootSel = document.createElement('select');
     rootSel.className = 'root-select';
     browseRoots.forEach(r => {
@@ -347,50 +392,53 @@ function renderExplorer() {
         if (r.path === browseData.root) opt.selected = true;
         rootSel.appendChild(opt);
     });
-    rootSel.onchange = () => loadFolder(rootSel.value);
+    rootSel.addEventListener('change', () => loadFolder(rootSel.value));
     breadcrumbs.appendChild(rootSel);
 
-    // Хлебные крошки
     const rel = browseData.cwd.startsWith(browseData.root + '/') ? browseData.cwd.slice(browseData.root.length + 1) : '';
     const chain = rel ? rel.split('/') : [];
     let acc = browseData.root;
     chain.forEach((part) => {
         acc += '/' + part;
         const sep = document.createElement('span'); sep.className = 'crumb-sep'; sep.textContent = '/'; breadcrumbs.appendChild(sep);
-        const span = document.createElement('span'); span.className = 'crumb'; span.innerText = part; span.onclick = () => loadFolder(acc); breadcrumbs.appendChild(span);
+        const span = document.createElement('span'); span.className = 'crumb'; span.innerText = part; 
+        span.addEventListener('click', () => loadFolder(acc));
+        breadcrumbs.appendChild(span);
     });
 
-    // Кнопка выбора ТЕКУЩЕЙ папки (для настроек)
     if (explorerTarget === 'settings_models') {
         const selectBtn = document.createElement('button');
         selectBtn.className = 'btn-primary';
         selectBtn.style.marginLeft = '10px';
         selectBtn.innerText = '✅ ' + (I18N_LANG === 'ru' ? 'Выбрать эту папку' : 'Select this folder');
-        selectBtn.onclick = () => {
+        selectBtn.addEventListener('click', () => {
             document.getElementById('set-models-dir').value = browseData.cwd;
             closeExplorer();
-        };
+        });
         breadcrumbs.appendChild(selectBtn);
     }
 
-    btnUp.style.display = browseData.parent ? 'flex' : 'none';
-    list.innerHTML = '';
+    if (btnUp) btnUp.style.display = browseData.parent ? 'flex' : 'none';
+    
+    const fragment = document.createDocumentFragment();
 
     if (!query) {
         browseData.folders.forEach(folder => {
             const div = document.createElement('div');
             div.className = 'explorer-item folder';
             div.innerHTML = '<div style="display:flex; align-items:center; gap:8px;"><svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> <b>' + escapeHtml(folder.name) + '</b></div>';
-            div.onclick = () => loadFolder(folder.path);
-            list.appendChild(div);
+            div.addEventListener('click', () => loadFolder(folder.path));
+            fragment.appendChild(div);
         });
     }
     
-    // Показываем файлы только если мы выбираем модель/проектор, а не папку целиком
     if (explorerTarget !== 'settings_models') {
         const filteredFiles = browseData.files.filter(f => f.name.toLowerCase().includes(query) || f.path.toLowerCase().includes(query));
-        if (filteredFiles.length === 0 && browseData.folders.length === 0) {
-            list.innerHTML += '<div style="padding:20px; text-align:center; color:#888;">' + t('explorer_empty') + '</div>';
+        if (filteredFiles.length === 0 && browseData.folders.length === 0 && !query) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.style.cssText = 'padding:20px; text-align:center; color:#888;';
+            emptyDiv.innerText = t('explorer_empty');
+            fragment.appendChild(emptyDiv);
         }
         filteredFiles.forEach(f => {
             const div = document.createElement('div');
@@ -402,19 +450,34 @@ function renderExplorer() {
                 </div>
                 <span class="size">${f.size_human}</span>
             `;
-            div.onclick = () => {
-                if (explorerTarget === 'main') document.getElementById('new-model').value = f.path;
-                else if (explorerTarget === 'mmproj') document.getElementById('arg-mmproj').value = f.path;
-                else if (explorerTarget === 'draft') document.getElementById('arg-draft-model').value = f.path;
+            div.addEventListener('click', () => {
+                if (explorerTarget === 'main') {
+                    document.getElementById('new-model').value = f.path;
+                } else if (explorerTarget === 'mmproj') {
+                    document.getElementById('arg-mmproj').value = f.path;
+                } else if (explorerTarget === 'draft') {
+                    document.getElementById('arg-draft-model').value = f.path;
+                } else if (explorerTarget === 'settings_binary') {
+                    // ФИКС: Добавлена обработка выбора бинарника
+                    document.getElementById('set-llama-bin').value = f.path;
+                    if (typeof updateBinaryStatus === 'function') {
+                        updateBinaryStatus(f.path);
+                    }
+                }
                 closeExplorer();
-            };
-            list.appendChild(div);
+            });
+            fragment.appendChild(div);
         });
     } else {
         if (browseData.folders.length === 0) {
-            list.innerHTML += '<div style="padding:20px; text-align:center; color:#888;">' + t('explorer_empty') + '</div>';
+            const emptyDiv = document.createElement('div');
+            emptyDiv.style.cssText = 'padding:20px; text-align:center; color:#888;';
+            emptyDiv.innerText = t('explorer_empty');
+            fragment.appendChild(emptyDiv);
         }
     }
+    list.innerHTML = '';
+    list.appendChild(fragment);
 }
 
 function goUp() {
@@ -504,9 +567,15 @@ function onArgChange() { buildArgs(); }
 function onModeChange() {
     const mode = document.getElementById('run-mode').value;
     const groups = ['group-generation', 'group-embedding', 'group-reranking', 'group-vision', 'group-draft', 'group-reasoning'];
-    groups.forEach(id => document.getElementById(id).style.display = 'none');
-    document.getElementById('arg-flash').checked = false;
-    document.getElementById('arg-jinja').checked = false;
+    groups.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    
+    const flash = document.getElementById('arg-flash');
+    const jinja = document.getElementById('arg-jinja');
+    if (flash) flash.checked = false;
+    if (jinja) jinja.checked = false;
 
     if (mode === 'chat') {
         document.getElementById('arg-ctx').value = "8192";
@@ -514,21 +583,21 @@ function onModeChange() {
         document.getElementById('group-vision').style.display = 'grid';
         document.getElementById('group-draft').style.display = 'grid';
         document.getElementById('group-reasoning').style.display = 'grid';
-        document.getElementById('arg-flash').checked = true;
-        document.getElementById('arg-jinja').checked = true;
+        if (flash) flash.checked = true;
+        if (jinja) jinja.checked = true;
     } else if (mode === 'coder') {
         document.getElementById('arg-ctx').value = "16384";
         document.getElementById('group-generation').style.display = 'grid';
         document.getElementById('group-reasoning').style.display = 'grid';
         document.getElementById('group-draft').style.display = 'grid';
-        document.getElementById('arg-flash').checked = true;
-        document.getElementById('arg-jinja').checked = true;
+        if (flash) flash.checked = true;
+        if (jinja) jinja.checked = true;
     } else if (mode === 'vision') {
         document.getElementById('arg-ctx').value = "4096";
         document.getElementById('group-generation').style.display = 'grid';
         document.getElementById('group-vision').style.display = 'grid';
-        document.getElementById('arg-flash').checked = true;
-        document.getElementById('arg-jinja').checked = true;
+        if (flash) flash.checked = true;
+        if (jinja) jinja.checked = true;
     } else if (mode === 'embedding') {
         document.getElementById('arg-ctx').value = "2048";
         document.getElementById('group-embedding').style.display = 'grid';
@@ -562,13 +631,16 @@ function buildArgs() {
         document.getElementById('new-args').value = args.join(" ");
         return;
     }
-    if (document.getElementById('arg-flash').checked) {
+    const flashEl = document.getElementById('arg-flash');
+    if (flashEl && flashEl.checked) {
         args.push('--flash-attn on');
         args.push('--cache-type-k q8_0 --cache-type-v q8_0');
     }
-    if (document.getElementById('arg-jinja').checked) args.push('--jinja');
+    const jinjaEl = document.getElementById('arg-jinja');
+    if (jinjaEl && jinjaEl.checked) args.push('--jinja');
 
-    if (document.getElementById('group-reasoning').style.display !== 'none') {
+    const reasoningGroup = document.getElementById('group-reasoning');
+    if (reasoningGroup && reasoningGroup.style.display !== 'none') {
         const reasoningMode = document.getElementById('arg-reasoning-mode').value;
         if (reasoningMode !== 'auto') args.push('--reasoning ' + reasoningMode);
         const reasoningBudget = document.getElementById('arg-reasoning-budget').value;
@@ -587,7 +659,8 @@ function buildArgs() {
     const moe = document.getElementById('arg-moe').value;
     if (moe !== "") args.push('--n-cpu-moe ' + moe);
 
-    if (document.getElementById('group-draft').style.display !== 'none') {
+    const draftGroup = document.getElementById('group-draft');
+    if (draftGroup && draftGroup.style.display !== 'none') {
         const draftModel = document.getElementById('arg-draft-model').value;
         if (draftModel.trim() !== "") {
             args.push('-md "' + draftModel.trim() + '"');
@@ -603,8 +676,6 @@ function updateDraftWarning() {
     const el = document.getElementById('draft-warning');
     if (el) el.innerHTML = t('draft_warning');
 }
-
-/* ==================== РУКОВОДСТВО ==================== */
 
 /* ==================== INIT ==================== */
 document.addEventListener('DOMContentLoaded', async () => {
