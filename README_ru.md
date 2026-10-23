@@ -1,6 +1,11 @@
 <div align="center">
 
 🇷🇺 **Русский** | [🇬🇧 English](README.md)
+<br> ---
+
+**UI interface (translations only):**
+
+🇨🇳 中文 (简体) | 🇹🇷 Türkçe | 🇩🇪 Deutsch | 🇫🇷 Français | 🇪🇸 Español
 
 </div>
 
