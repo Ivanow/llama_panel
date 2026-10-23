@@ -1,0 +1,2 @@
+2026-10-22 09:00:34,011 - ERROR - Ошибка получения ресурсов: [Errno 2] No such file or directory: 'nvidia-smi'
+2026-10-22 09:00:39,854 - ERROR - Ошибка получения ресурсов: [Errno 2] No such file or directory: 'nvidia-smi'

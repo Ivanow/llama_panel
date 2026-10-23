@@ -130,7 +130,44 @@ function openSettings() {
 
 function closeSettings() {
     document.getElementById('settingsModal').classList.remove('active');
+    // Если это был онбординг (первый запуск) — после закрытия грузим карточки,
+    // иначе интерфейс остаётся пустым и «запертым» без настроек.
+    loadInstances();
 }
+
+// Закрытие модалок кликом по затемнённому фону.
+// Единый делегат: работает для всех модалок (.modal / .modal-overlay), включая
+// те, что открываются/добавляются динамически. Закрывает только если тап/клик
+// начался и закончился точно на оверлее (не на содержимом окна) — поэтому
+// выделение текста внутри окна или «тап мимо» на смартфоне окно не закрывают,
+// а одиночный тап по затемнению — закрывает.
+document.addEventListener('click', e => {
+    const overlay = e.target.closest('.modal.active, .modal-overlay.active');
+    if (overlay && e.target === overlay) {
+        switch (overlay.id) {
+            case 'settingsModal': closeSettings(); break;
+            case 'addModal':      closeModal(); break;
+            case 'explorerModal': closeExplorer(); break;
+            case 'guideModal':    closeGuide(); break;
+        }
+    }
+}, true);
+
+// Esc закрывает верхнюю открытую модалку.
+document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const order = ['explorerModal', 'guideModal', 'addModal', 'settingsModal'];
+    for (const id of order) {
+        const m = document.getElementById(id);
+        if (m && m.classList.contains('active')) {
+            if (id === 'explorerModal') closeExplorer();
+            else if (id === 'guideModal') closeGuide();
+            else if (id === 'addModal') closeModal();
+            else closeSettings();
+            break;
+        }
+    }
+});
 
 function updateBinaryStatus(path) {
     const el = document.getElementById('binary-status');
